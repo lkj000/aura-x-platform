@@ -166,3 +166,34 @@ export const samples = mysqlTable("samples", {
 
 export type Sample = typeof samples.$inferSelect;
 export type InsertSample = typeof samples.$inferInsert;
+
+/**
+ * Generation History table - Tracks all AI generations with exact parameters for reproducibility
+ */
+export const generationHistory = mysqlTable("generation_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to users
+  projectId: int("projectId"), // Optional: link to a project
+  generationId: int("generationId"), // Link to original generation
+  prompt: text("prompt"),
+  subgenre: varchar("subgenre", { length: 100 }),
+  mood: varchar("mood", { length: 100 }),
+  // Reproducibility parameters
+  seed: int("seed").notNull(),
+  temperature: decimal("temperature", { precision: 3, scale: 2 }).notNull(),
+  topK: int("topK").notNull(),
+  topP: decimal("topP", { precision: 3, scale: 2 }).notNull(),
+  cfgScale: decimal("cfgScale", { precision: 4, scale: 2 }).notNull(),
+  steps: int("steps").notNull(),
+  // Results
+  audioUrl: text("audioUrl"),
+  duration: int("duration"), // Duration in seconds
+  status: mysqlEnum("status", ["completed", "failed", "processing"]).default("processing").notNull(),
+  isFavorite: boolean("isFavorite").default(false).notNull(),
+  modelVersion: varchar("modelVersion", { length: 100 }),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type GenerationHistory = typeof generationHistory.$inferSelect;
+export type InsertGenerationHistory = typeof generationHistory.$inferInsert;

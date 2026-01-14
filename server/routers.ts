@@ -192,6 +192,71 @@ export const appRouter = router({
       return db.getUserGenerations(ctx.user.id);
     }),
   }),
+
+  // Generation History router
+  generationHistory: router({
+    list: protectedProcedure
+      .input(z.object({
+        projectId: z.number().optional(),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ ctx, input }) => {
+        return db.getUserGenerationHistory(ctx.user.id, input.projectId, input.limit);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        projectId: z.number().optional(),
+        generationId: z.number().optional(),
+        prompt: z.string().optional(),
+        subgenre: z.string().optional(),
+        mood: z.string().optional(),
+        seed: z.number(),
+        temperature: z.number(),
+        topK: z.number(),
+        topP: z.number(),
+        cfgScale: z.number(),
+        steps: z.number(),
+        audioUrl: z.string().optional(),
+        duration: z.number().optional(),
+        status: z.enum(["completed", "failed", "processing"]).default("processing"),
+        modelVersion: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createGenerationHistory({
+          userId: ctx.user.id,
+          ...input,
+        });
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        audioUrl: z.string().optional(),
+        duration: z.number().optional(),
+        status: z.enum(["completed", "failed", "processing"]).optional(),
+        errorMessage: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        await db.updateGenerationHistory(id, updates);
+        return { success: true };
+      }),
+
+    toggleFavorite: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.toggleGenerationHistoryFavorite(input.id);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteGenerationHistory(input.id);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,0 +1,23 @@
+CREATE TABLE `generation_history` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`projectId` int,
+	`generationId` int,
+	`prompt` text,
+	`subgenre` varchar(100),
+	`mood` varchar(100),
+	`seed` int NOT NULL,
+	`temperature` decimal(3,2) NOT NULL,
+	`topK` int NOT NULL,
+	`topP` decimal(3,2) NOT NULL,
+	`cfgScale` decimal(4,2) NOT NULL,
+	`steps` int NOT NULL,
+	`audioUrl` text,
+	`duration` int,
+	`status` enum('completed','failed','processing') NOT NULL DEFAULT 'processing',
+	`isFavorite` boolean NOT NULL DEFAULT false,
+	`modelVersion` varchar(100),
+	`errorMessage` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `generation_history_id` PRIMARY KEY(`id`)
+);

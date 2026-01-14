@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, Loader2, Server, Key, Database, Zap } from 'lucide-react';
 import SampleUpload from '@/components/SampleUpload';
+import ModalConfiguration from '@/components/ModalConfiguration';
 import { toast } from 'sonner';
 
 export default function Settings() {
@@ -75,73 +76,7 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="modal" className="space-y-4 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Modal.com Configuration</CardTitle>
-                <CardDescription>
-                  Connect AURA-X to your deployed Modal AI functions for music generation
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="modal-url">Modal Base URL</Label>
-                  <Input
-                    id="modal-url"
-                    placeholder="https://your-app.modal.run"
-                    value={modalConfig.baseUrl}
-                    onChange={(e) => setModalConfig({ ...modalConfig, baseUrl: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    The base URL of your deployed Modal application
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="modal-key">API Key (Optional)</Label>
-                  <Input
-                    id="modal-key"
-                    type="password"
-                    placeholder="Enter your Modal API key"
-                    value={modalConfig.apiKey}
-                    onChange={(e) => setModalConfig({ ...modalConfig, apiKey: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    If your Modal functions require authentication
-                  </p>
-                </div>
-
-                {connectionStatus === 'success' && (
-                  <Alert className="border-green-500/50 bg-green-500/10">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <AlertDescription className="text-green-500">
-                      Successfully connected to Modal.com
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {connectionStatus === 'error' && (
-                  <Alert className="border-destructive/50 bg-destructive/10">
-                    <XCircle className="h-4 w-4 text-destructive" />
-                    <AlertDescription className="text-destructive">
-                      Failed to connect. Please check your configuration.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-              <CardFooter className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={handleTestConnection}
-                  disabled={isTestingConnection || !modalConfig.baseUrl}
-                >
-                  {isTestingConnection && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Test Connection
-                </Button>
-                <Button onClick={handleSaveConfig} disabled={!modalConfig.baseUrl}>
-                  Save Configuration
-                </Button>
-              </CardFooter>
-            </Card>
+            <ModalConfiguration />
 
             <Card>
               <CardHeader>
