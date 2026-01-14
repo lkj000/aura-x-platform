@@ -114,20 +114,39 @@ def apply_mastering_tool(audio_url: str, target_loudness: float = -14.0, style: 
 def check_quality_tool(audio_url: str) -> Dict:
     """
     Analyze audio quality metrics (LUFS, spectral analysis, cultural authenticity)
+    Uses real quality scoring service with pyloudnorm and librosa
     """
     try:
-        # This would call a quality analysis endpoint
-        # For now, return placeholder
+        QUALITY_API_URL = "http://localhost:8001"
+        
+        response = requests.post(
+            f"{QUALITY_API_URL}/analyze",
+            json={
+                "audio_url": audio_url,
+                "genre": "amapiano",
+                "target_loudness": -14.0
+            },
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        # Return simplified format for agent
         return {
-            "lufs": -14.2,
-            "peak_db": -0.5,
-            "dynamic_range": 8.5,
-            "cultural_score": 85,
-            "spectral_balance": "good",
-            "recommendations": []
+            "overall_score": result["overall_score"],
+            "lufs": result["lufs"],
+            "peak_db": result["peak_db"],
+            "dynamic_range": result["dynamic_range"],
+            "cultural_score": result["cultural_authenticity_score"],
+            "spectral_balance": result["spectral_balance"],
+            "tempo": result.get("tempo_detected"),
+            "key": result.get("key_detected"),
+            "recommendations": result["recommendations"],
+            "status": "completed"
         }
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "status": "failed"}
 
 def export_track_tool(audio_url: str, format: str = "wav") -> Dict:
     """

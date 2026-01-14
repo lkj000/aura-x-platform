@@ -1,0 +1,18 @@
+# AURA-X Quality Scoring Service Dependencies
+
+# Core framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Audio processing
+librosa==0.10.1
+pyloudnorm==0.1.1
+soundfile==0.12.1
+numpy==1.24.3
+
+# HTTP client
+requests==2.31.0
+
+# Utilities
+python-dotenv==1.0.0

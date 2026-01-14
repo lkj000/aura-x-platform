@@ -51,6 +51,7 @@ export default function TimelineV2({
   const createClipMutation = trpc.audioClips.create.useMutation();
   const updateClipMutation = trpc.audioClips.update.useMutation();
   const deleteClipMutation = trpc.audioClips.delete.useMutation();
+  const utils = trpc.useUtils();
 
   // Load tracks and clips
   useEffect(() => {
@@ -62,13 +63,15 @@ export default function TimelineV2({
         const allClips: ClipWithTrack[] = [];
         
         for (const track of tracksQuery.data) {
-          const trackClips = await trpc.audioClips.list.useQuery({ trackId: track.id }).refetch();
-          if (trackClips.data) {
-            allClips.push(...trackClips.data.map(clip => ({
+          try {
+            const trackClips = await utils.client.audioClips.list.query({ trackId: track.id });
+            allClips.push(...trackClips.map((clip: AudioClip) => ({
               ...clip,
               trackName: track.name,
               trackColor: getTrackColor(track.type),
             })));
+          } catch (error) {
+            console.error(`Failed to load clips for track ${track.id}:`, error);
           }
         }
         
@@ -77,7 +80,7 @@ export default function TimelineV2({
       
       loadClips();
     }
-  }, [tracksQuery.data]);
+  }, [tracksQuery.data, utils.client]);
 
   // Handle drop from media library
   const handleDrop = useCallback(async (e: React.DragEvent, trackId: number) => {
