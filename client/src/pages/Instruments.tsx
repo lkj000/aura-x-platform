@@ -41,6 +41,7 @@ export default function Instruments() {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [waveformData, setWaveformData] = useState<number[]>([]);
+  const [autonomousMode, setAutonomousMode] = useState(false);
 
   const [params, setParams] = useState<GenerationParams>({
     prompt: 'Energetic Amapiano track with log drums, shakers, and smooth piano chords in F minor at 112 BPM',
@@ -65,6 +66,8 @@ export default function Instruments() {
     }));
   };
 
+  const utils = trpc.useUtils();
+
   const generateMusicMutation = trpc.generate.music.useMutation({
     onSuccess: (data) => {
       console.log('[Instruments] Generation started:', data);
@@ -81,11 +84,6 @@ export default function Instruments() {
     },
   });
 
-  const generationStatusQuery = trpc.generate.status.useQuery(
-    { generationId: generatedAudio?.generationId || 0 },
-    { enabled: false }
-  );
-
   const saveToMediaLibraryMutation = trpc.mediaLibrary.create.useMutation({
     onSuccess: () => {
       toast({
@@ -101,8 +99,7 @@ export default function Instruments() {
 
     const poll = async () => {
       try {
-        const status = await generationStatusQuery.refetch();
-        const generation = status.data;
+        const generation = await utils.client.generate.status.query({ generationId });
 
         if (!generation) {
           throw new Error('Generation not found');
@@ -177,21 +174,70 @@ export default function Instruments() {
     setGenerationProgress(0);
     setGeneratedAudio(null);
 
-    generateMusicMutation.mutate({
-      prompt: params.prompt,
-      parameters: {
-        tempo: params.tempo,
-        key: params.key,
-        mode: params.mode,
-        duration: params.duration,
-        seed: params.seed,
-        temperature: params.temperature,
-        topK: params.topK,
-        topP: params.topP,
-        cfgScale: params.cfgScale,
-        generationMode: params.generationMode,
-      },
-    });
+    if (autonomousMode) {
+      // Call orchestration agent for Level 5 autonomous workflow
+      try {
+        const response = await fetch('http://localhost:8000/workflow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            goal: params.prompt,
+            user_id: 1, // TODO: Get from auth context
+            parameters: {
+              tempo: params.tempo,
+              key: params.key,
+              mode: params.mode,
+              duration: params.duration,
+              seed: params.seed,
+              temperature: params.temperature,
+              topK: params.topK,
+              topP: params.topP,
+              cfgScale: params.cfgScale,
+              generationMode: params.generationMode,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Orchestration agent request failed');
+        }
+
+        const result = await response.json();
+        
+        toast({
+          title: 'Autonomous Workflow Started',
+          description: `Workflow ID: ${result.workflow_id}`,
+        });
+
+        // TODO: Poll workflow status and update UI
+        setIsGenerating(false);
+        setGenerationProgress(100);
+      } catch (error) {
+        setIsGenerating(false);
+        toast({
+          title: 'Orchestration Failed',
+          description: error instanceof Error ? error.message : 'Failed to start autonomous workflow. Make sure orchestration agent is running on port 8000.',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // Manual mode: direct Modal generation
+      generateMusicMutation.mutate({
+        prompt: params.prompt,
+        parameters: {
+          tempo: params.tempo,
+          key: params.key,
+          mode: params.mode,
+          duration: params.duration,
+          seed: params.seed,
+          temperature: params.temperature,
+          topK: params.topK,
+          topP: params.topP,
+          cfgScale: params.cfgScale,
+          generationMode: params.generationMode,
+        },
+      });
+    }
   };
 
   const handlePlayPause = () => {
@@ -285,6 +331,39 @@ export default function Instruments() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Autonomous Mode Toggle */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Workflow Mode
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={!autonomousMode ? 'default' : 'outline'}
+                    className="w-full justify-start gap-2"
+                    onClick={() => setAutonomousMode(false)}
+                    disabled={isGenerating}
+                  >
+                    <Music className="h-4 w-4" />
+                    Manual
+                  </Button>
+                  <Button
+                    variant={autonomousMode ? 'default' : 'outline'}
+                    className="w-full justify-start gap-2 bg-gradient-to-r from-primary to-secondary"
+                    onClick={() => setAutonomousMode(true)}
+                    disabled={isGenerating}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Autonomous
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {autonomousMode
+                    ? 'AI agent handles complete workflow: generate → analyze → master → export'
+                    : 'Manual control over each production step'}
+                </p>
+              </div>
+
               {/* Generation Mode Toggle */}
               <div className="space-y-2">
                 <Label>Generation Mode</Label>

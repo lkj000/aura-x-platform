@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Projects from "./pages/Projects";
 import Settings from "./pages/Settings";
 import Instruments from "./pages/Instruments";
+import Analysis from "./pages/Analysis";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -16,6 +17,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path="/projects" component={Projects} />
       <Route path="/instruments" component={Instruments} />
+      <Route path="/analysis" component={Analysis} />
       <Route path="/settings" component={Settings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
