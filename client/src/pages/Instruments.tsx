@@ -8,10 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle } from 'lucide-react';
+import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lightbulb, Lock } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
 import { AudioEngine } from '@/services/AudioEngine';
+
+type GenerationMode = 'creative' | 'production';
 
 interface GenerationParams {
   prompt: string;
@@ -24,6 +26,7 @@ interface GenerationParams {
   topK: number;
   topP: number;
   cfgScale: number;
+  generationMode: GenerationMode;
 }
 
 export default function Instruments() {
@@ -50,7 +53,17 @@ export default function Instruments() {
     topK: 50,
     topP: 0.95,
     cfgScale: 7.5,
+    generationMode: 'creative',
   });
+
+  // Regenerate seed when switching to creative mode
+  const handleModeChange = (mode: GenerationMode) => {
+    setParams(prev => ({
+      ...prev,
+      generationMode: mode,
+      seed: mode === 'creative' ? Math.floor(Math.random() * 1000000) : prev.seed,
+    }));
+  };
 
   const generateMusicMutation = trpc.generate.music.useMutation({
     onSuccess: (data) => {
@@ -171,6 +184,12 @@ export default function Instruments() {
         key: params.key,
         mode: params.mode,
         duration: params.duration,
+        seed: params.seed,
+        temperature: params.temperature,
+        topK: params.topK,
+        topP: params.topP,
+        cfgScale: params.cfgScale,
+        generationMode: params.generationMode,
       },
     });
   };
@@ -266,6 +285,36 @@ export default function Instruments() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Generation Mode Toggle */}
+              <div className="space-y-2">
+                <Label>Generation Mode</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={params.generationMode === 'creative' ? 'default' : 'outline'}
+                    className="w-full justify-start gap-2"
+                    onClick={() => handleModeChange('creative')}
+                    disabled={isGenerating}
+                  >
+                    <Lightbulb className="h-4 w-4" />
+                    Creative
+                  </Button>
+                  <Button
+                    variant={params.generationMode === 'production' ? 'default' : 'outline'}
+                    className="w-full justify-start gap-2"
+                    onClick={() => handleModeChange('production')}
+                    disabled={isGenerating}
+                  >
+                    <Lock className="h-4 w-4" />
+                    Production
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {params.generationMode === 'creative'
+                    ? 'Random seed for exploration and variety'
+                    : 'Fixed seed for reproducible, deterministic results'}
+                </p>
+              </div>
+
               {/* Prompt */}
               <div className="space-y-2">
                 <Label htmlFor="prompt">Prompt</Label>

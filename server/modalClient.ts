@@ -25,6 +25,12 @@ export interface MusicGenerationParams {
   mode?: string; // Amapiano subgenre
   instruments?: string[];
   duration?: number; // in seconds
+  seed?: number;
+  temperature?: number;
+  topK?: number;
+  topP?: number;
+  cfgScale?: number;
+  generationMode?: 'creative' | 'production';
   culturalAuthenticityWeight?: number; // 0-1
 }
 

@@ -130,6 +130,12 @@ export const appRouter = router({
           mode: z.string().optional(),
           instruments: z.array(z.string()).optional(),
           duration: z.number().optional(),
+          seed: z.number().optional(),
+          temperature: z.number().optional(),
+          topK: z.number().optional(),
+          topP: z.number().optional(),
+          cfgScale: z.number().optional(),
+          generationMode: z.enum(['creative', 'production']).optional(),
         }).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -152,6 +158,12 @@ export const appRouter = router({
             mode: input.parameters?.mode,
             instruments: input.parameters?.instruments,
             duration: input.parameters?.duration,
+            seed: input.parameters?.seed,
+            temperature: input.parameters?.temperature,
+            topK: input.parameters?.topK,
+            topP: input.parameters?.topP,
+            cfgScale: input.parameters?.cfgScale,
+            generationMode: input.parameters?.generationMode || 'creative',
           });
 
           // Update generation with Modal job ID
