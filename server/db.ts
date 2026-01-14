@@ -1,6 +1,12 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, tracks, generations, mediaLibrary, generationHistory, type Project, type Track, type Generation, type InsertProject, type InsertTrack, type InsertGeneration, type GenerationHistory, type InsertGenerationHistory } from "../drizzle/schema";
+import { 
+  InsertUser, users, projects, tracks, generations, mediaLibrary, generationHistory,
+  audioClips, midiNotes, samples,
+  type Project, type Track, type Generation, type InsertProject, type InsertTrack, type InsertGeneration, 
+  type GenerationHistory, type InsertGenerationHistory, type AudioClip, type InsertAudioClip,
+  type MidiNote, type InsertMidiNote, type Sample, type MediaLibraryItem, type InsertMediaLibraryItem
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -262,4 +268,174 @@ export async function deleteGenerationHistory(id: number): Promise<void> {
   if (!db) throw new Error("Database not available");
 
   await db.delete(generationHistory).where(eq(generationHistory.id, id));
+}
+
+// Audio Clips queries
+export async function createAudioClip(clip: InsertAudioClip): Promise<AudioClip> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(audioClips).values(clip);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(audioClips).where(eq(audioClips.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function getTrackAudioClips(trackId: number): Promise<AudioClip[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(audioClips).where(eq(audioClips.trackId, trackId));
+}
+
+export async function updateAudioClip(clipId: number, updates: Partial<InsertAudioClip>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(audioClips).set(updates).where(eq(audioClips.id, clipId));
+}
+
+export async function deleteAudioClip(clipId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(audioClips).where(eq(audioClips.id, clipId));
+}
+
+// MIDI Notes queries
+export async function createMidiNote(note: InsertMidiNote): Promise<MidiNote> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(midiNotes).values(note);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(midiNotes).where(eq(midiNotes.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function createMidiNotesBatch(trackId: number, notes: Omit<InsertMidiNote, 'trackId'>[]): Promise<MidiNote[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const notesWithTrackId = notes.map(note => ({ ...note, trackId }));
+  await db.insert(midiNotes).values(notesWithTrackId);
+  
+  // Return all notes for this track
+  return getTrackMidiNotes(trackId);
+}
+
+export async function getTrackMidiNotes(trackId: number): Promise<MidiNote[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(midiNotes).where(eq(midiNotes.trackId, trackId));
+}
+
+export async function updateMidiNote(noteId: number, updates: Partial<InsertMidiNote>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(midiNotes).set(updates).where(eq(midiNotes.id, noteId));
+}
+
+export async function deleteMidiNote(noteId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(midiNotes).where(eq(midiNotes.id, noteId));
+}
+
+export async function deleteMidiNotesBatch(noteIds: number[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(midiNotes).where(inArray(midiNotes.id, noteIds));
+}
+
+// Samples queries
+export async function getSamples(filters: {
+  category?: string;
+  key?: string;
+  bpm?: number;
+  search?: string;
+  limit?: number;
+}): Promise<Sample[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  let query = db.select().from(samples);
+  
+  const conditions = [];
+  if (filters.category) {
+    conditions.push(eq(samples.category, filters.category as any));
+  }
+  if (filters.key) {
+    conditions.push(eq(samples.key, filters.key));
+  }
+  if (filters.bpm) {
+    conditions.push(eq(samples.bpm, filters.bpm));
+  }
+  if (filters.search) {
+    conditions.push(like(samples.name, `%${filters.search}%`));
+  }
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+
+  return query.limit(filters.limit || 50);
+}
+
+export async function getSampleById(sampleId: number): Promise<Sample | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(samples).where(eq(samples.id, sampleId)).limit(1);
+  return result[0];
+}
+
+// Media Library queries
+export async function getUserMediaLibrary(userId: number, filters: {
+  type?: string;
+  search?: string;
+  limit?: number;
+}): Promise<MediaLibraryItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  let query = db.select().from(mediaLibrary).where(eq(mediaLibrary.userId, userId));
+  
+  const conditions = [eq(mediaLibrary.userId, userId)];
+  if (filters.type) {
+    conditions.push(eq(mediaLibrary.type, filters.type));
+  }
+  if (filters.search) {
+    conditions.push(like(mediaLibrary.name, `%${filters.search}%`));
+  }
+
+  if (conditions.length > 1) {
+    query = db.select().from(mediaLibrary).where(and(...conditions)) as any;
+  }
+
+  return query.orderBy(desc(mediaLibrary.createdAt)).limit(filters.limit || 50);
+}
+
+export async function createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(mediaLibrary).values(item);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(mediaLibrary).where(eq(mediaLibrary.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function deleteMediaLibraryItem(itemId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(mediaLibrary).where(eq(mediaLibrary.id, itemId));
 }

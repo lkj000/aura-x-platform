@@ -185,6 +185,42 @@ export const appRouter = router({
         if (!generation) {
           throw new Error("Generation not found");
         }
+        
+        // If still processing, check Modal status
+        if (generation.status === 'processing' && generation.workflowId) {
+          try {
+            const modalStatus = await modalClient.checkJobStatus(generation.workflowId);
+            
+            // Update database if status changed
+            const audioUrl = 'audioUrl' in modalStatus ? modalStatus.audioUrl : undefined;
+            if (modalStatus.status === 'completed' && audioUrl) {
+              const culturalScore = 'culturalScore' in modalStatus ? modalStatus.culturalScore : undefined;
+              const processingTime = 'processingTime' in modalStatus ? modalStatus.processingTime : undefined;
+              
+              await db.updateGeneration(generation.id, {
+                status: 'completed',
+                resultUrl: audioUrl,
+                culturalScore: culturalScore?.toString(),
+                processingTime,
+                completedAt: new Date(),
+              });
+              
+              // Return updated generation
+              return await db.getGenerationById(input.generationId);
+            } else if (modalStatus.status === 'failed') {
+              await db.updateGeneration(generation.id, {
+                status: 'failed',
+                errorMessage: modalStatus.error || 'Generation failed',
+              });
+              
+              return await db.getGenerationById(input.generationId);
+            }
+          } catch (error) {
+            console.error('[API] Failed to check Modal status:', error);
+            // Continue with database status
+          }
+        }
+        
         return generation;
       }),
 
@@ -254,6 +290,179 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await db.deleteGenerationHistory(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Audio Clips router
+  audioClips: router({
+    list: protectedProcedure
+      .input(z.object({ trackId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getTrackAudioClips(input.trackId);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        trackId: z.number(),
+        name: z.string(),
+        fileUrl: z.string(),
+        startTime: z.number(),
+        duration: z.number(),
+        offset: z.number().default(0),
+        fadeIn: z.number().default(0),
+        fadeOut: z.number().default(0),
+        gain: z.number().default(1.0),
+      }))
+      .mutation(async ({ input }) => {
+        return db.createAudioClip(input);
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        startTime: z.number().optional(),
+        duration: z.number().optional(),
+        offset: z.number().optional(),
+        fadeIn: z.number().optional(),
+        fadeOut: z.number().optional(),
+        gain: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        await db.updateAudioClip(id, updates);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteAudioClip(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // MIDI Notes router
+  midiNotes: router({
+    list: protectedProcedure
+      .input(z.object({ trackId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getTrackMidiNotes(input.trackId);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        trackId: z.number(),
+        pitch: z.string(),
+        time: z.number(),
+        duration: z.number(),
+        velocity: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        return db.createMidiNote(input);
+      }),
+
+    createBatch: protectedProcedure
+      .input(z.object({
+        trackId: z.number(),
+        notes: z.array(z.object({
+          pitch: z.string(),
+          time: z.number(),
+          duration: z.number(),
+          velocity: z.number(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        return db.createMidiNotesBatch(input.trackId, input.notes);
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        pitch: z.string().optional(),
+        time: z.number().optional(),
+        duration: z.number().optional(),
+        velocity: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        await db.updateMidiNote(id, updates);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteMidiNote(input.id);
+        return { success: true };
+      }),
+
+    deleteBatch: protectedProcedure
+      .input(z.object({ ids: z.array(z.number()) }))
+      .mutation(async ({ input }) => {
+        await db.deleteMidiNotesBatch(input.ids);
+        return { success: true };
+      }),
+  }),
+
+  // Samples router
+  samples: router({
+    list: protectedProcedure
+      .input(z.object({
+        category: z.string().optional(),
+        key: z.string().optional(),
+        bpm: z.number().optional(),
+        search: z.string().optional(),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ input }) => {
+        return db.getSamples(input);
+      }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getSampleById(input.id);
+      }),
+  }),
+
+  // Media Library router
+  mediaLibrary: router({
+    list: protectedProcedure
+      .input(z.object({
+        type: z.string().optional(),
+        search: z.string().optional(),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ ctx, input }) => {
+        return db.getUserMediaLibrary(ctx.user.id, input);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        type: z.string(),
+        fileUrl: z.string(),
+        fileSize: z.number(),
+        duration: z.number().optional(),
+        format: z.string(),
+        sampleRate: z.number().optional(),
+        generationId: z.number().optional(),
+        metadata: z.any().optional(),
+        tags: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createMediaLibraryItem({
+          userId: ctx.user.id,
+          ...input,
+        });
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteMediaLibraryItem(input.id);
         return { success: true };
       }),
   }),

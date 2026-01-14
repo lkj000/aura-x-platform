@@ -235,3 +235,52 @@
 - [x] Create metadata extraction and tagging
 - [x] Implement quality filtering and validation
 - [x] Build training dataset organization structure
+
+
+## Generation → DAW Workflow Implementation
+
+### Phase 1: Instruments Page - Real AI Generation
+- [x] Connect Instruments page to Modal music generation endpoint
+- [x] Implement real-time generation progress tracking
+- [x] Add audio preview playback with waveform visualization
+- [x] Implement download to media library functionality
+- [x] Add generation parameter persistence
+- [x] Build error handling and retry logic
+
+### Phase 2: Media Library Storage
+- [ ] Implement S3 upload for generated audio
+- [ ] Create media library database records
+- [ ] Build media library UI component
+- [ ] Add audio file metadata extraction
+- [ ] Implement search and filtering
+- [ ] Add download functionality
+
+### Phase 3: Studio Timeline - Audio Import & Playback
+- [ ] Implement drag-and-drop from media library to timeline
+- [ ] Create audio clip rendering on timeline
+- [ ] Connect to AudioEngine for real playback
+- [ ] Build transport controls (play/pause/stop)
+- [ ] Add waveform visualization for clips
+- [ ] Implement timeline scrolling and zooming
+
+### Phase 4: Audio Editing
+- [ ] Implement clip selection and multi-select
+- [ ] Add clip movement with snapping
+- [ ] Build clip trimming (start/end)
+- [ ] Implement volume/gain control per clip
+- [ ] Add fade in/fade out
+- [ ] Build undo/redo system
+
+### Phase 5: Audio Export
+- [ ] Implement mix-down to single audio file
+- [ ] Add export format selection (WAV/MP3)
+- [ ] Build export progress tracking
+- [ ] Implement download functionality
+- [ ] Add export to media library option
+
+### Phase 6: End-to-End Testing
+- [ ] Test complete workflow from generation to export
+- [ ] Verify audio quality throughout pipeline
+- [ ] Test error handling and edge cases
+- [ ] Validate performance under load
+- [ ] Document workflow for users

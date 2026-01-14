@@ -197,3 +197,39 @@ export const generationHistory = mysqlTable("generation_history", {
 
 export type GenerationHistory = typeof generationHistory.$inferSelect;
 export type InsertGenerationHistory = typeof generationHistory.$inferInsert;
+
+/**
+ * Audio Clips table - Clips placed on timeline tracks
+ */
+export const audioClips = mysqlTable("audio_clips", {
+  id: int("id").autoincrement().primaryKey(),
+  trackId: int("trackId").notNull(), // Foreign key to tracks
+  name: varchar("name", { length: 255 }).notNull(),
+  fileUrl: text("fileUrl").notNull(), // S3 URL to audio file
+  startTime: decimal("startTime", { precision: 10, scale: 3 }).$type<number>().notNull(), // Position in timeline (seconds)
+  duration: decimal("duration", { precision: 10, scale: 3 }).$type<number>().notNull(), // Clip duration (seconds)
+  offset: decimal("offset", { precision: 10, scale: 3 }).$type<number>().notNull(), // Offset into audio file (seconds)
+  fadeIn: decimal("fadeIn", { precision: 5, scale: 3 }).$type<number>().notNull(), // Fade in duration (seconds)
+  fadeOut: decimal("fadeOut", { precision: 5, scale: 3 }).$type<number>().notNull(), // Fade out duration (seconds)
+  gain: decimal("gain", { precision: 5, scale: 2 }).$type<number>().notNull(), // Clip gain multiplier
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AudioClip = typeof audioClips.$inferSelect;
+export type InsertAudioClip = typeof audioClips.$inferInsert;
+
+/**
+ * MIDI Notes table - MIDI notes for piano roll
+ */
+export const midiNotes = mysqlTable("midi_notes", {
+  id: int("id").autoincrement().primaryKey(),
+  trackId: int("trackId").notNull(), // Foreign key to tracks
+  pitch: varchar("pitch", { length: 10 }).notNull(), // e.g., "C4", "F#5"
+  time: decimal("time", { precision: 10, scale: 3 }).$type<number>().notNull(), // Start time in seconds
+  duration: decimal("duration", { precision: 10, scale: 3 }).$type<number>().notNull(), // Note duration in seconds
+  velocity: decimal("velocity", { precision: 3, scale: 2 }).$type<number>().notNull(), // 0.00 to 1.00
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MidiNote = typeof midiNotes.$inferSelect;
+export type InsertMidiNote = typeof midiNotes.$inferInsert;

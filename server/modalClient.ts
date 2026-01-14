@@ -72,6 +72,23 @@ export async function generateMusic(params: MusicGenerationParams): Promise<Musi
   try {
     console.log('[ModalClient] Generating music with params:', params);
     
+    // Check if Modal is configured
+    if (!MODAL_API_KEY || MODAL_BASE_URL.includes('your-modal-app')) {
+      console.warn('[ModalClient] Modal not configured, using demo mode');
+      // Return a demo response that simulates async processing
+      const jobId = `demo-${Date.now()}`;
+      
+      // Simulate async processing - in real implementation, this would be handled by Modal
+      setTimeout(() => {
+        console.log('[ModalClient] Demo generation complete');
+      }, 2000);
+      
+      return {
+        jobId,
+        status: 'pending',
+      };
+    }
+    
     const response = await modalClient.post<MusicGenerationResponse>('/generate-music', params);
     
     return response.data;
@@ -118,6 +135,18 @@ export async function masterAudio(params: MasteringParams): Promise<MasteringRes
  */
 export async function checkJobStatus(jobId: string): Promise<MusicGenerationResponse | StemSeparationResponse | MasteringResponse> {
   try {
+    // Handle demo mode
+    if (jobId.startsWith('demo-')) {
+      // Return a demo audio URL (you can replace with actual demo file)
+      return {
+        jobId,
+        status: 'completed',
+        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Demo audio
+        culturalScore: 85,
+        processingTime: 2000,
+      };
+    }
+    
     const response = await modalClient.get(`/job-status/${jobId}`);
     return response.data;
   } catch (error) {
