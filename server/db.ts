@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, projects, tracks, generations, mediaLibrary, type Project, type Track, type Generation, type InsertProject, type InsertTrack, type InsertGeneration } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,113 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Project queries
+export async function createProject(project: InsertProject): Promise<Project> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(projects).values(project);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(projects).where(eq(projects.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function getUserProjects(userId: number): Promise<Project[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(projects).where(eq(projects.userId, userId));
+}
+
+export async function getProjectById(projectId: number): Promise<Project | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  return result[0];
+}
+
+export async function updateProject(projectId: number, updates: Partial<InsertProject>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(projects).set(updates).where(eq(projects.id, projectId));
+}
+
+export async function deleteProject(projectId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Delete associated tracks first
+  await db.delete(tracks).where(eq(tracks.projectId, projectId));
+  // Then delete the project
+  await db.delete(projects).where(eq(projects.id, projectId));
+}
+
+// Track queries
+export async function createTrack(track: InsertTrack): Promise<Track> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(tracks).values(track);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(tracks).where(eq(tracks.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function getProjectTracks(projectId: number): Promise<Track[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(tracks).where(eq(tracks.projectId, projectId));
+}
+
+export async function updateTrack(trackId: number, updates: Partial<InsertTrack>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(tracks).set(updates).where(eq(tracks.id, trackId));
+}
+
+export async function deleteTrack(trackId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(tracks).where(eq(tracks.id, trackId));
+}
+
+// Generation queries
+export async function createGeneration(generation: InsertGeneration): Promise<Generation> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(generations).values(generation);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(generations).where(eq(generations.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function getUserGenerations(userId: number): Promise<Generation[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(generations).where(eq(generations.userId, userId));
+}
+
+export async function getGenerationById(generationId: number): Promise<Generation | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(generations).where(eq(generations.id, generationId)).limit(1);
+  return result[0];
+}
+
+export async function updateGeneration(generationId: number, updates: Partial<InsertGeneration>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(generations).set(updates).where(eq(generations.id, generationId));
+}

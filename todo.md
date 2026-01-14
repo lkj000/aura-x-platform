@@ -25,3 +25,28 @@
 - [ ] Create AI-powered mixing assistant
 - [ ] Add humanization engine
 - [ ] Implement loop variation generator
+
+## Immediate Implementation Tasks
+
+### Audio Engine (Tone.js)
+- [x] Install and configure Tone.js
+- [x] Create AudioEngine service class
+- [x] Implement transport controls (play/pause/stop)
+- [x] Add audio sample loading and caching
+- [x] Connect Piano Roll to audio scheduling
+- [x] Add metronome and click track
+
+### Modal.com Integration
+- [ ] Create server-side API proxy endpoints
+- [ ] Implement music generation workflow
+- [ ] Implement stem separation workflow
+- [ ] Add real-time progress tracking via WebSocket
+- [ ] Handle file uploads to S3
+- [ ] Add error handling and retry logic
+
+### Project Persistence
+- [ ] Design database schema for projects and tracks
+- [ ] Create tRPC procedures for CRUD operations
+- [ ] Implement auto-save functionality
+- [ ] Add project browser/manager UI
+- [ ] Implement export functionality

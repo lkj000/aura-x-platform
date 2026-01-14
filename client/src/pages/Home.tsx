@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { AudioEngine } from '@/services/AudioEngine';
 import Layout from '@/components/Layout';
 import PianoRoll from '@/components/daw/PianoRoll';
 import Mixer from '@/components/daw/Mixer';
@@ -25,9 +27,30 @@ import InstrumentSelector from '@/components/daw/InstrumentSelector';
 import CulturalInspector from '@/components/daw/CulturalInspector';
 
 export default function Home() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [tempo, setTempo] = useState(112);
+  const { 
+    isPlaying, 
+    togglePlay, 
+    stop, 
+    tempo, 
+    setTempo: setEngineTempo,
+    currentPosition 
+  } = useAudioEngine();
+  
   const [activeView, setActiveView] = useState('timeline');
+  
+  // Load sample instruments on mount
+  useEffect(() => {
+    const loadSamples = async () => {
+      // TODO: Load actual Amapiano samples
+      // For now, using Tone.js built-in samples as placeholders
+      await AudioEngine.loadInstrument('piano', {
+        'C4': 'https://tonejs.github.io/audio/salamander/C4.mp3',
+        'D4': 'https://tonejs.github.io/audio/salamander/D4.mp3',
+        'E4': 'https://tonejs.github.io/audio/salamander/E4.mp3',
+      });
+    };
+    loadSamples();
+  }, []);
 
   return (
     <Layout>
@@ -42,11 +65,11 @@ export default function Home() {
               <Button 
                 size="icon" 
                 className="h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={togglePlay}
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={stop}>
                 <Square className="h-4 w-4 fill-current" />
               </Button>
             </div>
