@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
+import * as modalClient from "./modalClient";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -142,14 +143,39 @@ export const appRouter = router({
           status: "pending",
         });
 
-        // TODO: Call Modal.com API to start generation
-        // This will be implemented in the next step
-        console.log('[AI Generate] Created generation request:', generation.id);
+        // Call Modal.com API to start generation
+        try {
+          const modalResponse = await modalClient.generateMusic({
+            prompt: input.prompt,
+            tempo: input.parameters?.tempo,
+            key: input.parameters?.key,
+            mode: input.parameters?.mode,
+            instruments: input.parameters?.instruments,
+            duration: input.parameters?.duration,
+          });
 
-        return {
-          generationId: generation.id,
-          status: "pending",
-        };
+          // Update generation with Modal job ID
+          await db.updateGeneration(generation.id, {
+            workflowId: modalResponse.jobId,
+            status: "processing",
+          });
+
+          console.log('[AI Generate] Started Modal job:', modalResponse.jobId);
+
+          return {
+            generationId: generation.id,
+            jobId: modalResponse.jobId,
+            status: "processing",
+          };
+        } catch (error) {
+          // Update generation with error
+          await db.updateGeneration(generation.id, {
+            status: "failed",
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          });
+
+          throw error;
+        }
       }),
 
     status: protectedProcedure
