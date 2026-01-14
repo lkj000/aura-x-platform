@@ -28,6 +28,10 @@ import {
 } from 'lucide-react';
 import InstrumentSelector from '@/components/daw/InstrumentSelector';
 import CulturalInspector from '@/components/daw/CulturalInspector';
+import SampleBrowser from '@/components/SampleBrowser';
+import GenerationHistory from '@/components/GenerationHistory';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { History, Library } from 'lucide-react';
 
 export default function Home() {
   const { 
@@ -43,6 +47,62 @@ export default function Home() {
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showSampleBrowser, setShowSampleBrowser] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Mock data for Sample Browser (replace with actual tRPC query)
+  const mockSamples = [
+    {
+      id: '1',
+      name: 'Log Drum Main',
+      category: 'log-drum',
+      bpm: 112,
+      key: 'F min',
+      duration: 4.5,
+      fileUrl: '/samples/log-drum-1.wav',
+      tags: ['amapiano', 'percussion'],
+      isFavorite: false,
+      createdAt: new Date(),
+    },
+  ];
+
+  // Mock data for Generation History (replace with actual tRPC query)
+  const mockHistory = [
+    {
+      id: '1',
+      timestamp: new Date(),
+      params: {
+        seed: 42,
+        temperature: 0.8,
+        topK: 50,
+        topP: 0.95,
+        cfgScale: 7.5,
+        steps: 50,
+        prompt: 'Amapiano log drum pattern',
+        subgenre: 'Private School',
+        mood: 'energetic',
+      },
+      audioUrl: '/generated/track-1.mp3',
+      duration: 180,
+      status: 'completed' as const,
+      isFavorite: true,
+      modelVersion: 'v1.0.0',
+    },
+  ];
+
+  const handleRegenerate = (params: any) => {
+    console.log('Regenerating with params:', params);
+    toast.success('Starting regeneration...');
+  };
+
+  const handleSampleSelect = (sample: any) => {
+    console.log('Sample selected:', sample);
+    toast.info(`Selected: ${sample.name}`);
+  };
+
+  const handleSampleDragStart = (sample: any) => {
+    console.log('Dragging sample:', sample);
+  };
 
   // Auto-save functionality
   const updateProject = trpc.projects.update.useMutation({
@@ -145,8 +205,29 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Main Workspace */}
-        <ResizablePanelGroup direction="vertical" className="flex-1 rounded-lg border border-border overflow-hidden shadow-xl bg-card/30 backdrop-blur-sm">
+        {/* Main Workspace with Sample Browser */}
+        <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border border-border overflow-hidden shadow-xl bg-card/30 backdrop-blur-sm">
+          
+          {/* Left Sidebar: Sample Browser */}
+          {showSampleBrowser && (
+            <>
+              <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+                <div className="h-full">
+                  <SampleBrowser
+                    samples={mockSamples as any}
+                    onSampleSelect={handleSampleSelect}
+                    onSampleDragStart={handleSampleDragStart}
+                    onToggleFavorite={(id) => console.log('Toggle favorite:', id)}
+                  />
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+            </>
+          )}
+
+          {/* Main DAW Area */}
+          <ResizablePanel defaultSize={showSampleBrowser ? 80 : 100}>
+            <ResizablePanelGroup direction="vertical" className="h-full">
           
           {/* Top Panel: Timeline / Arrangement */}
           <ResizablePanel defaultSize={60} minSize={30}>
@@ -219,7 +300,49 @@ export default function Home() {
             </Tabs>
           </ResizablePanel>
 
+            </ResizablePanelGroup>
+          </ResizablePanel>
+
         </ResizablePanelGroup>
+
+        {/* Generation History Drawer */}
+        <Sheet open={showHistory} onOpenChange={setShowHistory}>
+          <SheetContent side="right" className="w-[600px] sm:w-[700px] p-0">
+            <SheetHeader className="p-6 pb-4">
+              <SheetTitle>Generation History</SheetTitle>
+            </SheetHeader>
+            <div className="px-6 pb-6 h-[calc(100vh-80px)] overflow-hidden">
+              <GenerationHistory
+                history={mockHistory}
+                onRegenerate={handleRegenerate}
+                onPlay={(item) => console.log('Play:', item)}
+                onDownload={(item) => console.log('Download:', item)}
+                onDelete={(id) => console.log('Delete:', id)}
+                onToggleFavorite={(id) => console.log('Toggle favorite:', id)}
+                maxHeight="calc(100vh - 150px)"
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Floating Action Buttons */}
+        <div className="fixed bottom-6 right-6 flex flex-col gap-2">
+          <Button
+            size="icon"
+            className="h-12 w-12 rounded-full shadow-lg"
+            onClick={() => setShowHistory(!showHistory)}
+          >
+            <History className="h-5 w-5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-12 w-12 rounded-full shadow-lg"
+            onClick={() => setShowSampleBrowser(!showSampleBrowser)}
+          >
+            <Library className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
     </Layout>
   );

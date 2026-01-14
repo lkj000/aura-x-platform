@@ -36,8 +36,9 @@ export default function SampleUpload() {
   const [packName, setPackName] = useState('');
   const [packDescription, setPackDescription] = useState('');
 
-  const createSamplePack = trpc.samples.createPack.useMutation();
-  const uploadSample = trpc.samples.upload.useMutation();
+  // TODO: Implement samples router in server/routers.ts
+  // const createSamplePack = trpc.samples.createPack.useMutation();
+  // const uploadSample = trpc.samples.upload.useMutation();
 
   // Extract audio metadata using Web Audio API
   const extractMetadata = async (file: File): Promise<UploadedFile['metadata']> => {

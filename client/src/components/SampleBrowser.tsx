@@ -205,7 +205,7 @@ export default function SampleBrowser({
               </SelectTrigger>
               <SelectContent>
                 {bpms.map((bpm) => (
-                  <SelectItem key={bpm} value={bpm}>
+                  <SelectItem key={bpm} value={bpm || 'unknown'}>
                     {bpm === 'all' ? 'All BPMs' : `${bpm} BPM`}
                   </SelectItem>
                 ))}
@@ -218,7 +218,7 @@ export default function SampleBrowser({
               </SelectTrigger>
               <SelectContent>
                 {keys.map((key) => (
-                  <SelectItem key={key} value={key}>
+                  <SelectItem key={key} value={key || 'unknown'}>
                     {key === 'all' ? 'All Keys' : key}
                   </SelectItem>
                 ))}
@@ -322,19 +322,19 @@ function SampleCard({
       {/* Sample Info */}
       <div className="space-y-1">
         <p className="text-sm font-medium truncate">{sample.name}</p>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {sample.bpm && (
-            <span className="flex items-center gap-1">
-              <Disc className="h-3 w-3" />
-              {sample.bpm}
-            </span>
-          )}
-          {sample.key && <Badge variant="outline" className="text-xs py-0">{sample.key}</Badge>}
-          <span className="flex items-center gap-1 ml-auto">
-            <Clock className="h-3 w-3" />
-            {Math.floor(sample.duration)}s
-          </span>
-        </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {sample.bpm && (
+                  <span className="flex items-center gap-1">
+                    <Disc className="h-3 w-3" />
+                    {sample.bpm}
+                  </span>
+                )}
+                {sample.key && <Badge variant="outline" className="text-xs py-0">{sample.key}</Badge>}
+                <span className="flex items-center gap-1 ml-auto">
+                  <Clock className="h-3 w-3" />
+                  {Math.floor(sample.duration)}s
+                </span>
+              </div>
       </div>
 
       {/* Action Buttons */}

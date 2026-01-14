@@ -54,8 +54,8 @@ export const tracks = mysqlTable("tracks", {
   type: varchar("type", { length: 50 }).notNull(), // e.g., "log_drum", "shakers", "chords"
   audioUrl: text("audioUrl"), // S3 URL to audio file
   duration: int("duration"), // Duration in milliseconds
-  volume: decimal("volume", { precision: 5, scale: 2 }).default("1.00").notNull(), // 0.00 to 2.00
-  pan: decimal("pan", { precision: 3, scale: 2 }).default("0.00").notNull(), // -1.00 to 1.00
+  volume: decimal("volume", { precision: 5, scale: 2 }).$type<number>().notNull(), // 0.00 to 2.00
+  pan: decimal("pan", { precision: 3, scale: 2 }).$type<number>().notNull(), // -1.00 to 1.00
   muted: boolean("muted").default(false).notNull(),
   solo: boolean("solo").default(false).notNull(),
   orderIndex: int("orderIndex").default(0).notNull(), // Display order
@@ -180,10 +180,10 @@ export const generationHistory = mysqlTable("generation_history", {
   mood: varchar("mood", { length: 100 }),
   // Reproducibility parameters
   seed: int("seed").notNull(),
-  temperature: decimal("temperature", { precision: 3, scale: 2 }).notNull(),
+  temperature: decimal("temperature", { precision: 3, scale: 2 }).$type<number>().notNull(),
   topK: int("topK").notNull(),
-  topP: decimal("topP", { precision: 3, scale: 2 }).notNull(),
-  cfgScale: decimal("cfgScale", { precision: 4, scale: 2 }).notNull(),
+  topP: decimal("topP", { precision: 3, scale: 2 }).$type<number>().notNull(),
+  cfgScale: decimal("cfgScale", { precision: 4, scale: 2 }).$type<number>().notNull(),
   steps: int("steps").notNull(),
   // Results
   audioUrl: text("audioUrl"),
