@@ -15,6 +15,13 @@
       "when": 1768409721014,
       "tag": "0001_safe_selene",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1768411430246,
+      "tag": "0002_messy_tarot",
+      "breakpoints": true
     }
   ]
 }

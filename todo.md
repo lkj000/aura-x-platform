@@ -79,3 +79,36 @@
 - [ ] Add chord/piano samples
 - [ ] Add saxophone samples
 - [ ] Test playback with real samples
+
+## Critical: Reproducibility & Determinism
+
+### Seed Control & Parameter Versioning
+- [ ] Add seed parameter to all generation endpoints
+- [ ] Implement parameter snapshot system
+- [ ] Create generation history with exact parameters
+- [ ] Add "Regenerate with same settings" button
+- [ ] Store model version info with each generation
+- [ ] Implement parameter diff viewer
+
+### Modal Configuration UI
+- [x] Create Settings page component
+- [x] Add Modal endpoint configuration form
+- [ ] Implement environment variable management
+- [ ] Add connection testing functionality
+- [ ] Create API key secure storage
+
+### Auto-Save Implementation
+- [x] Add useInterval hook for periodic saves
+- [x] Implement project state serialization
+- [ ] Add "Saving..." indicator in UI
+- [ ] Handle offline/error scenarios
+- [ ] Add manual save trigger
+- [ ] Implement save conflict resolution
+
+### Sample Pack Management
+- [x] Create sample library database schema
+- [ ] Build sample upload/import UI
+- [ ] Implement sample categorization system
+- [ ] Add sample preview player
+- [ ] Create sample pack versioning
+- [ ] Build sample search and filtering

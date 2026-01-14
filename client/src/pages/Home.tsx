@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { useInterval } from '@/hooks/useInterval';
+import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
 import { AudioEngine } from '@/services/AudioEngine';
 import Layout from '@/components/Layout';
 import PianoRoll from '@/components/daw/PianoRoll';
@@ -37,6 +40,42 @@ export default function Home() {
   } = useAudioEngine();
   
   const [activeView, setActiveView] = useState('timeline');
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Auto-save functionality
+  const updateProject = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      setHasUnsavedChanges(false);
+      setIsSaving(false);
+    },
+    onError: (error) => {
+      setIsSaving(false);
+      console.error('[Auto-save] Failed:', error);
+    },
+  });
+
+  // Auto-save every 30 seconds if there are unsaved changes
+  useInterval(
+    () => {
+      if (hasUnsavedChanges && currentProjectId && !isSaving) {
+        setIsSaving(true);
+        updateProject.mutate({
+          id: currentProjectId,
+          tempo,
+        });
+      }
+    },
+    hasUnsavedChanges ? 30000 : null
+  );
+
+  // Mark as having unsaved changes when tempo changes
+  useEffect(() => {
+    if (currentProjectId) {
+      setHasUnsavedChanges(true);
+    }
+  }, [tempo, currentProjectId]);
   
   // Load sample instruments on mount
   useEffect(() => {

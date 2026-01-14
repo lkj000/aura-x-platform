@@ -109,3 +109,60 @@ export const mediaLibrary = mysqlTable("media_library", {
 
 export type MediaLibraryItem = typeof mediaLibrary.$inferSelect;
 export type InsertMediaLibraryItem = typeof mediaLibrary.$inferInsert;
+/**
+ * Sample Packs table - Collections of samples
+ */
+export const samplePacks = mysqlTable("sample_packs", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  version: varchar("version", { length: 50 }).default("1.0.0"),
+  author: varchar("author", { length: 255 }),
+  genre: varchar("genre", { length: 100 }).default("amapiano"),
+  subgenre: varchar("subgenre", { length: 100 }),
+  coverImageUrl: text("coverImageUrl"),
+  totalSamples: int("totalSamples").default(0),
+  totalSizeMb: varchar("totalSizeMb", { length: 50 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SamplePack = typeof samplePacks.$inferSelect;
+export type InsertSamplePack = typeof samplePacks.$inferInsert;
+
+/**
+ * Samples table - Individual audio samples
+ */
+export const samples = mysqlTable("samples", {
+  id: int("id").autoincrement().primaryKey(),
+  packId: int("packId"), // Foreign key to sample_packs
+  name: varchar("name", { length: 255 }).notNull(),
+  category: mysqlEnum("category", [
+    "log-drum",
+    "shaker",
+    "chord",
+    "bass",
+    "saxophone",
+    "vocal",
+    "percussion",
+    "fx",
+    "loop",
+    "one-shot"
+  ]).notNull(),
+  instrument: varchar("instrument", { length: 100 }),
+  key: varchar("key", { length: 10 }),
+  bpm: int("bpm"),
+  duration: varchar("duration", { length: 50 }),
+  fileUrl: text("fileUrl").notNull(),
+  waveformUrl: text("waveformUrl"),
+  fileSize: int("fileSize"),
+  format: varchar("format", { length: 20 }).default("wav"),
+  sampleRate: int("sampleRate").default(44100),
+  bitDepth: int("bitDepth").default(24),
+  tags: json("tags"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Sample = typeof samples.$inferSelect;
+export type InsertSample = typeof samples.$inferInsert;
