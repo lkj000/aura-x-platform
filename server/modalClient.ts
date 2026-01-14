@@ -143,11 +143,11 @@ export async function checkJobStatus(jobId: string): Promise<MusicGenerationResp
   try {
     // Handle demo mode
     if (jobId.startsWith('demo-')) {
-      // Return a demo audio URL (you can replace with actual demo file)
+      // Return a real Amapiano sample from S3 (no CORS issues)
       return {
         jobId,
         status: 'completed',
-        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Demo audio
+        audioUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663056762557/cGc3ksRef3yLzHbZBSFWXj/samples/Intro(Ad-libs)(1)-l8p0wj.mp3',
         culturalScore: 85,
         processingTime: 2000,
       };

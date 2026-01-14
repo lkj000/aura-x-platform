@@ -1,18 +1,17 @@
 """
 AURA-X Level 5 Orchestration Agent
-LangChain-based autonomous music production workflow automation
+Simplified autonomous music production workflow automation
 """
 
 import os
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from langchain.agents import initialize_agent, Tool, AgentType
-from langchain.chat_models import ChatOpenAI
-from langchain.memory import ConversationBufferMemory
-from langchain.prompts import MessagesPlaceholder
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 import requests
 import json
+import uvicorn
 
 # Initialize FastAPI app
 app = FastAPI(title="AURA-X Orchestration Agent")
@@ -21,6 +20,7 @@ app = FastAPI(title="AURA-X Orchestration Agent")
 MODAL_BASE_URL = os.getenv("MODAL_BASE_URL", "https://your-modal-app.modal.run")
 MODAL_API_KEY = os.getenv("MODAL_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+QUALITY_SCORING_URL = os.getenv("QUALITY_SCORING_URL", "http://localhost:8001")
 
 # Initialize LangChain LLM
 llm = ChatOpenAI(
@@ -29,273 +29,224 @@ llm = ChatOpenAI(
     openai_api_key=OPENAI_API_KEY
 )
 
-# Pydantic models for API
+# Request/Response models
 class WorkflowRequest(BaseModel):
-    goal: str  # e.g., "Create a 2-minute Amapiano track in F minor at 112 BPM"
-    user_id: int
-    project_id: Optional[int] = None
-    parameters: Optional[Dict[str, Any]] = None
+    goal: str
+    user_id: str
+    parameters: Optional[Dict[str, Any]] = {}
 
 class WorkflowResponse(BaseModel):
     workflow_id: str
     status: str
-    steps: List[Dict[str, Any]]
-    result: Optional[Dict[str, Any]] = None
+    steps: List[Dict[str, str]]
+    result: Dict[str, Any]
 
-# Tool functions for LangChain agent
-def generate_music_tool(prompt: str, parameters: Optional[Dict] = None) -> Dict:
-    """
-    Generate music using Modal AI endpoint
-    """
+class WorkflowStep(BaseModel):
+    workflow_id: str
+    step_name: str
+    parameters: Optional[Dict[str, Any]] = {}
+
+# Tool implementations
+def generate_music(prompt: str, **params) -> Dict[str, Any]:
+    """Generate music using Modal AI endpoint"""
     try:
-        params = parameters or {}
-        payload = {
-            "prompt": prompt,
-            **params
-        }
-        
         response = requests.post(
             f"{MODAL_BASE_URL}/generate-music",
-            json=payload,
+            json={"prompt": prompt, **params},
             headers={"Authorization": f"Bearer {MODAL_API_KEY}"},
             timeout=120
         )
-        response.raise_for_status()
-        
         return response.json()
     except Exception as e:
         return {"error": str(e), "status": "failed"}
 
-def separate_stems_tool(audio_url: str, stem_types: Optional[List[str]] = None) -> Dict:
-    """
-    Separate audio into stems using Modal AI endpoint
-    """
+def check_quality(audio_url: str) -> Dict[str, Any]:
+    """Check audio quality using quality scoring service"""
     try:
-        payload = {
-            "audioUrl": audio_url,
-            "stemTypes": stem_types or ["vocals", "drums", "bass", "other"]
-        }
-        
+        response = requests.post(
+            f"{QUALITY_SCORING_URL}/analyze",
+            json={"audio_url": audio_url},
+            timeout=60
+        )
+        return response.json()
+    except Exception as e:
+        return {"error": str(e), "status": "failed"}
+
+def separate_stems(audio_url: str) -> Dict[str, Any]:
+    """Separate audio into stems using Modal endpoint"""
+    try:
         response = requests.post(
             f"{MODAL_BASE_URL}/separate-stems",
-            json=payload,
-            headers={"Authorization": f"Bearer {MODAL_API_KEY}"},
-            timeout=300
-        )
-        response.raise_for_status()
-        
-        return response.json()
-    except Exception as e:
-        return {"error": str(e), "status": "failed"}
-
-def apply_mastering_tool(audio_url: str, target_loudness: float = -14.0, style: str = "amapiano") -> Dict:
-    """
-    Apply mastering to audio using Modal AI endpoint
-    """
-    try:
-        payload = {
-            "audioUrl": audio_url,
-            "targetLoudness": target_loudness,
-            "style": style
-        }
-        
-        response = requests.post(
-            f"{MODAL_BASE_URL}/master-audio",
-            json=payload,
+            json={"audio_url": audio_url},
             headers={"Authorization": f"Bearer {MODAL_API_KEY}"},
             timeout=180
         )
-        response.raise_for_status()
-        
         return response.json()
     except Exception as e:
         return {"error": str(e), "status": "failed"}
 
-def check_quality_tool(audio_url: str) -> Dict:
-    """
-    Analyze audio quality metrics (LUFS, spectral analysis, cultural authenticity)
-    Uses real quality scoring service with pyloudnorm and librosa
-    """
+def apply_mastering(audio_url: str, target_lufs: float = -14.0) -> Dict[str, Any]:
+    """Apply mastering to audio using Modal endpoint"""
     try:
-        QUALITY_API_URL = "http://localhost:8001"
-        
         response = requests.post(
-            f"{QUALITY_API_URL}/analyze",
-            json={
-                "audio_url": audio_url,
-                "genre": "amapiano",
-                "target_loudness": -14.0
-            },
-            timeout=60
+            f"{MODAL_BASE_URL}/master-audio",
+            json={"audio_url": audio_url, "target_loudness": target_lufs},
+            headers={"Authorization": f"Bearer {MODAL_API_KEY}"},
+            timeout=120
         )
-        response.raise_for_status()
-        
-        result = response.json()
-        
-        # Return simplified format for agent
-        return {
-            "overall_score": result["overall_score"],
-            "lufs": result["lufs"],
-            "peak_db": result["peak_db"],
-            "dynamic_range": result["dynamic_range"],
-            "cultural_score": result["cultural_authenticity_score"],
-            "spectral_balance": result["spectral_balance"],
-            "tempo": result.get("tempo_detected"),
-            "key": result.get("key_detected"),
-            "recommendations": result["recommendations"],
-            "status": "completed"
-        }
+        return response.json()
     except Exception as e:
         return {"error": str(e), "status": "failed"}
 
-def export_track_tool(audio_url: str, format: str = "wav") -> Dict:
-    """
-    Export final track in specified format
-    """
-    try:
-        return {
-            "export_url": audio_url,
-            "format": format,
-            "status": "completed"
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-# Define LangChain tools
-tools = [
-    Tool(
-        name="GenerateMusic",
-        func=lambda x: generate_music_tool(x),
-        description="Generate Amapiano music from a text prompt. Input should be a detailed description of the desired track including tempo, key, mood, and instruments."
-    ),
-    Tool(
-        name="SeparateStems",
-        func=lambda x: separate_stems_tool(x),
-        description="Separate an audio track into individual stems (vocals, drums, bass, other). Input should be the audio URL."
-    ),
-    Tool(
-        name="ApplyMastering",
-        func=lambda x: apply_mastering_tool(x),
-        description="Apply professional mastering to an audio track. Input should be the audio URL."
-    ),
-    Tool(
-        name="CheckQuality",
-        func=lambda x: check_quality_tool(x),
-        description="Analyze audio quality metrics including LUFS, dynamic range, and cultural authenticity score. Input should be the audio URL."
-    ),
-    Tool(
-        name="ExportTrack",
-        func=lambda x: export_track_tool(x),
-        description="Export the final track in the specified format. Input should be the audio URL."
-    ),
-]
-
-# Initialize agent with memory
-memory = ConversationBufferMemory(
-    memory_key="chat_history",
-    return_messages=True
-)
-
-agent = initialize_agent(
-    tools=tools,
-    llm=llm,
-    agent=AgentType.OPENAI_FUNCTIONS,
-    verbose=True,
-    memory=memory,
-    agent_kwargs={
-        "extra_prompt_messages": [MessagesPlaceholder(variable_name="chat_history")],
-        "system_message": """You are an expert Amapiano music producer AI agent. Your role is to:
-
-1. Understand user goals for music production
-2. Break down complex requests into actionable steps
-3. Execute the production workflow autonomously using available tools
-4. Ensure cultural authenticity in Amapiano productions
-5. Apply quality control at each step
-6. Provide clear feedback and recommendations
-
-When given a goal, you should:
-- Generate music using the GenerateMusic tool
-- Analyze quality using CheckQuality tool
-- Separate stems if needed using SeparateStems tool
-- Apply mastering using ApplyMastering tool
-- Export the final track using ExportTrack tool
-
-Always prioritize cultural authenticity and professional audio quality."""
+def export_track(audio_url: str, format: str = "wav") -> Dict[str, Any]:
+    """Export track to specified format"""
+    return {
+        "status": "completed",
+        "download_url": audio_url,
+        "format": format
     }
-)
+
+# Autonomous workflow executor
+async def execute_autonomous_workflow(goal: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Execute autonomous music production workflow using LLM to orchestrate tools
+    """
+    workflow_steps = []
+    
+    # Step 1: Parse goal and create execution plan
+    system_prompt = """You are an expert Amapiano music producer AI. Given a user goal, create a step-by-step execution plan.
+    
+Available tools:
+- generate_music: Generate music from text prompt
+- check_quality: Analyze audio quality (LUFS, spectral balance, cultural authenticity)
+- separate_stems: Separate audio into stems (vocals, drums, bass, other)
+- apply_mastering: Master audio to target LUFS level
+- export_track: Export final track
+
+Respond with a JSON array of steps in this format:
+[
+  {"tool": "generate_music", "params": {"prompt": "...", "tempo": 112, "duration": 120}},
+  {"tool": "check_quality", "params": {"audio_url": "$GENERATED_AUDIO_URL"}},
+  {"tool": "apply_mastering", "params": {"audio_url": "$GENERATED_AUDIO_URL", "target_lufs": -14}},
+  {"tool": "export_track", "params": {"audio_url": "$MASTERED_AUDIO_URL", "format": "wav"}}
+]"""
+    
+    try:
+        # Get execution plan from LLM
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"Goal: {goal}\nParameters: {json.dumps(params)}")
+        ]
+        
+        response = llm.invoke(messages)
+        plan_text = response.content
+        
+        # Extract JSON from response
+        import re
+        json_match = re.search(r'\[.*\]', plan_text, re.DOTALL)
+        if json_match:
+            execution_plan = json.loads(json_match.group())
+        else:
+            # Fallback to default workflow
+            execution_plan = [
+                {"tool": "generate_music", "params": {"prompt": goal, **params}},
+                {"tool": "check_quality", "params": {}},
+                {"tool": "apply_mastering", "params": {"target_lufs": -14}},
+                {"tool": "export_track", "params": {"format": "wav"}}
+            ]
+        
+        # Execute each step
+        context = {}  # Store results from previous steps
+        
+        for step in execution_plan:
+            tool_name = step["tool"]
+            tool_params = step["params"]
+            
+            # Resolve variable references (e.g., $GENERATED_AUDIO_URL)
+            for key, value in tool_params.items():
+                if isinstance(value, str) and value.startswith("$"):
+                    var_name = value[1:]
+                    tool_params[key] = context.get(var_name)
+            
+            # Execute tool
+            if tool_name == "generate_music":
+                result = generate_music(**tool_params)
+                context["GENERATED_AUDIO_URL"] = result.get("audioUrl")
+                workflow_steps.append({"step": "generate_music", "status": "completed", "result": result})
+                
+            elif tool_name == "check_quality":
+                audio_url = tool_params.get("audio_url") or context.get("GENERATED_AUDIO_URL")
+                result = check_quality(audio_url)
+                workflow_steps.append({"step": "check_quality", "status": "completed", "result": result})
+                
+            elif tool_name == "separate_stems":
+                audio_url = tool_params.get("audio_url") or context.get("GENERATED_AUDIO_URL")
+                result = separate_stems(audio_url)
+                context["STEMS"] = result.get("stems")
+                workflow_steps.append({"step": "separate_stems", "status": "completed", "result": result})
+                
+            elif tool_name == "apply_mastering":
+                audio_url = tool_params.get("audio_url") or context.get("GENERATED_AUDIO_URL")
+                target_lufs = tool_params.get("target_lufs", -14)
+                result = apply_mastering(audio_url, target_lufs)
+                context["MASTERED_AUDIO_URL"] = result.get("audioUrl")
+                workflow_steps.append({"step": "apply_mastering", "status": "completed", "result": result})
+                
+            elif tool_name == "export_track":
+                audio_url = tool_params.get("audio_url") or context.get("MASTERED_AUDIO_URL") or context.get("GENERATED_AUDIO_URL")
+                format = tool_params.get("format", "wav")
+                result = export_track(audio_url, format)
+                workflow_steps.append({"step": "export_track", "status": "completed", "result": result})
+        
+        return {
+            "status": "completed",
+            "steps": workflow_steps,
+            "final_result": context
+        }
+        
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e),
+            "steps": workflow_steps
+        }
 
 # API endpoints
-@app.post("/workflow/execute", response_model=WorkflowResponse)
+@app.post("/workflow", response_model=WorkflowResponse)
 async def execute_workflow(request: WorkflowRequest):
     """
     Execute an autonomous music production workflow
     """
     try:
-        # Run the agent with the user's goal
-        result = agent.run(request.goal)
+        result = await execute_autonomous_workflow(request.goal, request.parameters)
+        
+        import time
+        workflow_id = f"wf-{request.user_id}-{int(time.time())}"
         
         return WorkflowResponse(
-            workflow_id=f"wf-{request.user_id}-{int(os.time())}",
-            status="completed",
-            steps=[
-                {"step": "parse_goal", "status": "completed"},
-                {"step": "generate_music", "status": "completed"},
-                {"step": "quality_check", "status": "completed"},
-                {"step": "mastering", "status": "completed"},
-                {"step": "export", "status": "completed"},
-            ],
-            result={"message": result}
+            workflow_id=workflow_id,
+            status=result["status"],
+            steps=result.get("steps", []),
+            result=result.get("final_result", {})
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/workflow/step")
-async def execute_step(step_name: str, parameters: Dict[str, Any]):
-    """
-    Execute a single workflow step
-    """
-    try:
-        if step_name == "generate":
-            result = generate_music_tool(
-                parameters.get("prompt", ""),
-                parameters.get("parameters")
-            )
-        elif step_name == "separate":
-            result = separate_stems_tool(
-                parameters.get("audio_url", ""),
-                parameters.get("stem_types")
-            )
-        elif step_name == "master":
-            result = apply_mastering_tool(
-                parameters.get("audio_url", ""),
-                parameters.get("target_loudness", -14.0),
-                parameters.get("style", "amapiano")
-            )
-        elif step_name == "quality":
-            result = check_quality_tool(parameters.get("audio_url", ""))
-        elif step_name == "export":
-            result = export_track_tool(
-                parameters.get("audio_url", ""),
-                parameters.get("format", "wav")
-            )
-        else:
-            raise ValueError(f"Unknown step: {step_name}")
-        
-        return {"step": step_name, "result": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint
-    """
+    """Health check endpoint"""
     return {
         "status": "healthy",
         "modal_configured": bool(MODAL_API_KEY and not MODAL_BASE_URL.startswith("https://your-modal")),
-        "openai_configured": bool(OPENAI_API_KEY)
+        "openai_configured": bool(OPENAI_API_KEY and not OPENAI_API_KEY.startswith("sk-placeholder"))
     }
 
 if __name__ == "__main__":
-    import uvicorn
+    print("🎵 AURA-X Level 5 Orchestration Agent starting...")
+    print(f"📡 Modal Base URL: {MODAL_BASE_URL}")
+    print(f"🔑 Modal API Key: {'✓ Configured' if MODAL_API_KEY else '✗ Not configured'}")
+    print(f"🤖 OpenAI API Key: {'✓ Configured' if OPENAI_API_KEY and not OPENAI_API_KEY.startswith('sk-placeholder') else '✗ Not configured'}")
+    print(f"📊 Quality Scoring URL: {QUALITY_SCORING_URL}")
+    print("🚀 Starting server on port 8000...")
+    
     uvicorn.run(app, host="0.0.0.0", port=8000)

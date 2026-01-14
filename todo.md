@@ -413,6 +413,16 @@
 ## Critical Bug Fix + Follow-ups (Current)
 - [x] Fix generate.status 500 error (generationId: 0 causing backend failure)
 - [x] Add autonomous mode toggle to Instruments page
-- [ ] Deploy quality scoring service on port 8001
+- [x] Deploy quality scoring service on port 8001
 - [x] Create Analysis page with quality score visualization
+- [ ] Test complete autonomous workflow end-to-end
+
+
+## Backend Deployment & CORS Fix (Current)
+- [x] Fix CORS error in waveform loading (external URL blocked)
+- [x] Use S3-hosted Amapiano sample instead of external URL
+- [x] Deploy orchestration agent on port 8000
+- [x] Deploy quality scoring service on port 8001
+- [ ] Configure Modal API keys (MODAL_API_KEY, MODAL_BASE_URL)
+- [ ] Deploy Modal AI endpoints (modal deploy modal_deploy.py)
 - [ ] Test complete autonomous workflow end-to-end
