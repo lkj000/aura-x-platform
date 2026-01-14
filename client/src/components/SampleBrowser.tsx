@@ -74,9 +74,9 @@ export default function SampleBrowser({
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Extract unique categories, BPMs, and keys from samples
-  const categories = ['all', ...Array.from(new Set(samples.map((s) => s.category)))];
+  const categories = ['all', ...Array.from(new Set(samples.map((s) => s.category).filter(Boolean)))];
   const bpms = ['all', ...Array.from(new Set(samples.map((s) => s.bpm?.toString()).filter(Boolean)))];
-  const keys = ['all', ...Array.from(new Set(samples.map((s) => s.key).filter(Boolean)))];
+  const keys = ['all', ...Array.from(new Set(samples.map((s) => s.key).filter((k): k is string => Boolean(k))))];
 
   // Filter samples based on search and filters
   const filteredSamples = samples.filter((sample) => {

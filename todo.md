@@ -332,3 +332,7 @@
 - [ ] Test drag-and-drop from Sample Browser to Timeline
 - [ ] Test audio playback with real Amapiano samples
 - [ ] Verify clip manipulation (move, delete, volume)
+
+
+## Bug Fixes (Current)
+- [x] Fix missing key prop in SampleBrowser list rendering
