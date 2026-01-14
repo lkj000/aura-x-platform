@@ -336,3 +336,62 @@
 
 ## Bug Fixes (Current)
 - [x] Fix missing key prop in SampleBrowser list rendering
+
+
+## Level 5 Autonomous Agent Implementation
+
+### Phase 1: Audio Export Functionality
+- [x] Implement Web Audio API OfflineAudioContext for mix-down
+- [x] Add WAV export functionality
+- [x] Add MP3 export functionality (with encoding)
+- [x] Create export UI in Studio page
+- [ ] Upload exported tracks to S3
+- [x] Add download links to media library
+- [x] Implement export progress tracking
+
+### Phase 2: Deterministic Inference & Creative/Production Modes
+- [ ] Add Creative/Production mode toggle to Instruments page
+- [ ] Update Modal deployment with torch.use_deterministic_algorithms(True)
+- [ ] Implement track hash (SHA256) in generation history
+- [ ] Add replay API endpoint to tRPC router
+- [ ] Update generation form to respect mode selection
+- [ ] Add mode indicator in generation history
+
+### Phase 3: LangChain Orchestration Agent (Python Backend)
+- [ ] Create Python FastAPI backend for orchestration
+- [ ] Integrate LangChain with agent framework
+- [ ] Define tool: generate_music()
+- [ ] Define tool: separate_stems()
+- [ ] Define tool: apply_mastering()
+- [ ] Define tool: export_track()
+- [ ] Implement agent prompt handling
+- [ ] Add agent progress tracking
+- [ ] Create agent UI in Instruments page
+- [ ] Connect frontend to Python orchestration backend
+- [ ] Deploy orchestration backend to Modal
+
+### Phase 4: Quality Scoring & Analysis
+- [ ] Implement spectral analysis in Analysis page
+- [ ] Add LUFS meter with compliance checking
+- [ ] Build cultural authenticity scoring for Amapiano
+- [ ] Add genre similarity detection
+- [ ] Surface quality metrics in generation history
+- [ ] Create quality dashboard in Analysis page
+- [ ] Implement automated quality feedback loop
+
+### Phase 5: Advanced Mastering Pipeline
+- [ ] Enhance Modal mastering with EQ
+- [ ] Add compression to mastering pipeline
+- [ ] Implement stereo imaging
+- [ ] Add loudness normalization (LUFS targeting)
+- [ ] Create Amapiano subgenre presets
+- [ ] Add mastering preview in Studio
+- [ ] Implement mastering parameter controls
+
+### Phase 6: Observability & Monitoring
+- [ ] Add Prometheus metrics to Modal endpoints
+- [ ] Build Grafana dashboard for GPU utilization
+- [ ] Add latency tracking
+- [ ] Implement LUFS monitoring
+- [ ] Add error tracking and logging
+- [ ] Create usage analytics dashboard

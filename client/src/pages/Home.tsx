@@ -30,6 +30,7 @@ import InstrumentSelector from '@/components/daw/InstrumentSelector';
 import CulturalInspector from '@/components/daw/CulturalInspector';
 import SampleBrowser from '@/components/SampleBrowser';
 import GenerationHistory from '@/components/GenerationHistory';
+import { ExportDialog } from '@/components/ExportDialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { History, Library } from 'lucide-react';
 
@@ -49,6 +50,7 @@ export default function Home() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSampleBrowser, setShowSampleBrowser] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   
   // Query all tracks and clips for playback
   const tracksQuery = trpc.tracks.list.useQuery({ projectId: currentProjectId || 1 });
@@ -215,7 +217,11 @@ export default function Home() {
               <Share2 className="h-4 w-4" />
               Share
             </Button>
-            <Button size="sm" className="gap-2 bg-gradient-to-r from-primary to-secondary text-white border-0">
+            <Button 
+              size="sm" 
+              className="gap-2 bg-gradient-to-r from-primary to-secondary text-white border-0"
+              onClick={() => setShowExportDialog(true)}
+            >
               <Download className="h-4 w-4" />
               Export
             </Button>
@@ -368,6 +374,22 @@ export default function Home() {
             <Library className="h-5 w-5" />
           </Button>
         </div>
+
+        {/* Export Dialog */}
+        <ExportDialog
+          open={showExportDialog}
+          onOpenChange={setShowExportDialog}
+          clips={allClips.map(clip => ({
+            id: clip.id,
+            trackId: clip.trackId,
+            audioUrl: clip.audioUrl,
+            startTime: clip.startTime,
+            duration: clip.duration,
+            volume: clip.gain || 1.0,
+            offset: clip.offset || 0,
+          }))}
+          projectName="My Project"
+        />
       </div>
     </Layout>
   );
