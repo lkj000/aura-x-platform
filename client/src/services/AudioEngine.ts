@@ -507,6 +507,114 @@ class AudioEngineService {
   }
 
   /**
+   * Schedule audio clip for playback on timeline
+   */
+  async scheduleClip(
+    clipId: string,
+    audioUrl: string,
+    startTime: number,
+    duration: number,
+    trackId: string,
+    volume: number = 1.0
+  ): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    try {
+      // Load audio if not already loaded
+      const buffer = await this.loadAudioFile(audioUrl);
+
+      // Create player for this clip
+      const player = new Tone.Player({
+        url: buffer,
+        volume: Tone.gainToDb(volume),
+      }).toDestination();
+
+      // Store player reference
+      if (!this.audioPlayers.has(trackId)) {
+        this.audioPlayers.set(trackId, []);
+      }
+      this.audioPlayers.get(trackId)!.push(player);
+
+      // Schedule playback
+      player.start(`+${startTime}`);
+      player.stop(`+${startTime + duration}`);
+
+      console.log(`[AudioEngine] Scheduled clip ${clipId} at ${startTime}s for ${duration}s`);
+    } catch (error) {
+      console.error(`[AudioEngine] Failed to schedule clip ${clipId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear all scheduled clips
+   */
+  clearScheduledClips(): void {
+    this.audioPlayers.forEach((players) => {
+      players.forEach((player) => {
+        player.stop();
+        player.dispose();
+      });
+    });
+    this.audioPlayers.clear();
+  }
+
+  /**
+   * Play timeline from current position
+   */
+  async playTimeline(
+    clips: Array<{
+      id: string;
+      fileUrl: string;
+      startTime: number;
+      duration: number;
+      trackId: string;
+      gain: number;
+    }>,
+    currentTime: number = 0
+  ): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    // Clear existing scheduled clips
+    this.clearScheduledClips();
+
+    // Filter clips that should play from current time
+    const activeClips = clips.filter(
+      (clip) => clip.startTime + clip.duration > currentTime
+    );
+
+    // Schedule each clip
+    for (const clip of activeClips) {
+      const offsetTime = Math.max(0, clip.startTime - currentTime);
+      const offsetDuration = clip.duration - Math.max(0, currentTime - clip.startTime);
+
+      await this.scheduleClip(
+        clip.id.toString(),
+        clip.fileUrl,
+        offsetTime,
+        offsetDuration,
+        clip.trackId.toString(),
+        clip.gain
+      );
+    }
+
+    // Start playback
+    this.play();
+  }
+
+  /**
+   * Stop timeline playback
+   */
+  stopTimeline(): void {
+    this.stop();
+    this.clearScheduledClips();
+  }
+
+  /**
    * Start recording
    */
   async startRecording(): Promise<void> {

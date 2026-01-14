@@ -284,3 +284,34 @@
 - [ ] Test error handling and edge cases
 - [ ] Validate performance under load
 - [ ] Document workflow for users
+
+
+## Completing Generation → DAW Workflow (Current)
+
+### Timeline Audio Playback Implementation
+- [x] Implement drag-and-drop from media library to timeline
+- [x] Create audio clip rendering on timeline canvas
+- [x] Connect AudioEngine for real Web Audio API playback
+- [x] Build transport controls (play/pause/stop/rewind)
+- [x] Add clip selection and manipulation
+- [x] Implement waveform visualization for clips
+- [x] Add timeline scrolling and zooming
+- [ ] Build clip trimming functionality
+- [x] Implement volume control per clip
+- [ ] Add fade in/fade out controls
+
+### Modal Deployment
+- [ ] Configure Modal API keys in environment
+- [ ] Deploy MusicGen endpoint
+- [ ] Deploy Demucs stem separation endpoint
+- [ ] Deploy mastering endpoint
+- [ ] Test all endpoints with real requests
+- [ ] Update frontend to use production endpoints
+
+### Audio Export
+- [ ] Implement mix-down engine using Web Audio API
+- [ ] Add export format selection (WAV/MP3)
+- [ ] Build export progress UI
+- [ ] Implement download functionality
+- [ ] Add export to media library option
+- [ ] Test export quality and integrity
