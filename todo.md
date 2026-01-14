@@ -112,3 +112,40 @@
 - [ ] Add sample preview player
 - [ ] Create sample pack versioning
 - [ ] Build sample search and filtering
+
+
+## Current Sprint: Complete Sample & Plugin System
+
+### Sample Upload UI
+- [x] Create SampleUpload component with drag-and-drop
+- [x] Implement file validation (format, size)
+- [x] Add automatic metadata extraction (BPM, key, duration)
+- [ ] Build waveform generation service
+- [x] Create batch upload progress indicator
+- [x] Add sample pack creation workflow
+
+### Seed Control & Reproducibility
+- [x] Add seed input field to generation UI
+- [x] Implement seed locking mechanism
+- [x] Create "Regenerate with same settings" button
+- [x] Build parameter snapshot viewer
+- [ ] Add generation history panel
+- [ ] Implement parameter comparison tool
+
+### Sample Browser Component
+- [ ] Create SampleBrowser component
+- [ ] Implement search and filtering
+- [ ] Add category-based navigation
+- [ ] Build sample preview player
+- [ ] Implement drag-to-timeline functionality
+- [ ] Add favorites system
+- [ ] Create recent samples history
+
+### Plugin Management & Failure Handling
+- [ ] Create plugin registry system
+- [ ] Implement plugin health checking
+- [ ] Add graceful fallback mechanisms
+- [ ] Build plugin error reporting
+- [ ] Create alternative processing chains
+- [ ] Add plugin version tracking
+- [ ] Implement plugin dependency resolution

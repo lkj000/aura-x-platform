@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, Loader2, Server, Key, Database, Zap } from 'lucide-react';
+import SampleUpload from '@/components/SampleUpload';
 import { toast } from 'sonner';
 
 export default function Settings() {
@@ -227,6 +228,18 @@ export default function Settings() {
               <CardFooter>
                 <Button>Save Audio Settings</Button>
               </CardFooter>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Sample Library</CardTitle>
+                <CardDescription>
+                  Upload and manage your Amapiano sample packs
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SampleUpload />
+              </CardContent>
             </Card>
           </TabsContent>
 
