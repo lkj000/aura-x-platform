@@ -99,7 +99,7 @@ export const mediaLibrary = mysqlTable("media_library", {
   fileUrl: text("fileUrl").notNull(), // S3 URL
   fileSize: int("fileSize").notNull(), // Size in bytes
   duration: int("duration"), // Duration in milliseconds
-  format: varchar("format", { length: 20 }).notNull(), // "mp3", "wav", etc.
+  format: varchar("format", { length: 20 }).default("mp3").notNull(), // "mp3", "wav", etc.
   sampleRate: int("sampleRate"), // e.g., 44100
   generationId: int("generationId"), // Optional: link to generation
   metadata: json("metadata"), // Additional metadata

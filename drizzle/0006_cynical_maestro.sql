@@ -1,0 +1,1 @@
+ALTER TABLE `media_library` MODIFY COLUMN `format` varchar(20) NOT NULL DEFAULT 'mp3';

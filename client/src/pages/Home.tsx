@@ -7,7 +7,7 @@ import { AudioEngine } from '@/services/AudioEngine';
 import Layout from '@/components/Layout';
 import PianoRoll from '@/components/daw/PianoRoll';
 import Mixer from '@/components/daw/Mixer';
-import Timeline from '@/components/daw/Timeline';
+import TimelineV2 from '@/components/daw/TimelineV2';
 import { 
   ResizableHandle, 
   ResizablePanel, 
@@ -44,27 +44,55 @@ export default function Home() {
   } = useAudioEngine();
   
   const [activeView, setActiveView] = useState('timeline');
-  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(1); // Default to project 1
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSampleBrowser, setShowSampleBrowser] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
+  
+  // Query all tracks and clips for playback
+  const tracksQuery = trpc.tracks.list.useQuery({ projectId: currentProjectId || 1 });
+  const [allClips, setAllClips] = useState<any[]>([]);
+  
+  // Load clips when tracks change
+  useEffect(() => {
+    if (!tracksQuery.data) return;
+    
+    const loadAllClips = async () => {
+      const clips: any[] = [];
+      for (const track of tracksQuery.data) {
+        const trackClips = await trpc.audioClips.list.useQuery({ trackId: track.id }).refetch();
+        if (trackClips.data) {
+          clips.push(...trackClips.data.map(clip => ({
+            ...clip,
+            trackId: track.id,
+            gain: clip.gain || 1.0,
+          })));
+        }
+      }
+      setAllClips(clips);
+    };
+    
+    loadAllClips();
+  }, [tracksQuery.data]);
+  
+  // Custom play handler that uses AudioEngine.playTimeline()
+  const handlePlay = async () => {
+    if (isPlaying) {
+      stop();
+    } else {
+      try {
+        await AudioEngine.playTimeline(allClips, currentPosition);
+      } catch (error) {
+        console.error('[Home] Playback failed:', error);
+        toast.error('Playback failed');
+      }
+    }
+  };
 
-  // Mock data for Sample Browser (replace with actual tRPC query)
-  const mockSamples = [
-    {
-      id: '1',
-      name: 'Log Drum Main',
-      category: 'log-drum',
-      bpm: 112,
-      key: 'F min',
-      duration: 4.5,
-      fileUrl: '/samples/log-drum-1.wav',
-      tags: ['amapiano', 'percussion'],
-      isFavorite: false,
-      createdAt: new Date(),
-    },
-  ];
+  // Load real samples from media library
+  const samplesQuery = trpc.mediaLibrary.list.useQuery({ type: 'audio' });
+  const samples = samplesQuery.data || [];
 
   // Mock data for Generation History (replace with actual tRPC query)
   const mockHistory = [
@@ -153,7 +181,7 @@ export default function Home() {
               <Button 
                 size="icon" 
                 className="h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={togglePlay}
+                onClick={handlePlay}
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
               </Button>
@@ -203,7 +231,7 @@ export default function Home() {
               <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
                 <div className="h-full">
                   <SampleBrowser
-                    samples={mockSamples as any}
+                    samples={samples as any}
                     onSampleSelect={handleSampleSelect}
                     onSampleDragStart={handleSampleDragStart}
                     onToggleFavorite={(id) => console.log('Toggle favorite:', id)}
@@ -232,7 +260,15 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex-1 overflow-hidden">
-                <Timeline />
+                <TimelineV2 
+                  projectId={currentProjectId || 1}
+                  isPlaying={isPlaying}
+                  currentTime={currentPosition}
+                  onTimeChange={(time) => {
+                    // Seek to new position
+                    AudioEngine.setPosition(time);
+                  }}
+                />
               </div>
             </div>
           </ResizablePanel>

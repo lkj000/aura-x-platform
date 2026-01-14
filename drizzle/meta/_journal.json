@@ -43,6 +43,13 @@
       "when": 1768422105264,
       "tag": "0005_cynical_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1768423740018,
+      "tag": "0006_cynical_maestro",
+      "breakpoints": true
     }
   ]
 }

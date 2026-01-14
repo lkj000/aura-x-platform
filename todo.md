@@ -320,3 +320,15 @@
 ## Bug Fixes (Current)
 - [x] Remove placeholder Tone.js sample loading code causing external URL errors
 - [x] Clean up mock data in Home.tsx
+
+
+## Timeline Integration with Real Samples (Current)
+- [x] Upload Amapiano samples to S3 storage
+- [x] Create media library database records for samples
+- [x] Replace Timeline component with TimelineV2 in Home.tsx
+- [x] Connect transport controls to AudioEngine.playTimeline()
+- [x] Wire up play/pause/stop buttons
+- [x] Connect Sample Browser to real database
+- [ ] Test drag-and-drop from Sample Browser to Timeline
+- [ ] Test audio playback with real Amapiano samples
+- [ ] Verify clip manipulation (move, delete, volume)
