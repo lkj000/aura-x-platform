@@ -137,19 +137,8 @@ export default function Home() {
     }
   }, [tempo, currentProjectId]);
   
-  // Load sample instruments on mount
-  useEffect(() => {
-    const loadSamples = async () => {
-      // TODO: Load actual Amapiano samples
-      // For now, using Tone.js built-in samples as placeholders
-      await AudioEngine.loadInstrument('piano', {
-        'C4': 'https://tonejs.github.io/audio/salamander/C4.mp3',
-        'D4': 'https://tonejs.github.io/audio/salamander/D4.mp3',
-        'E4': 'https://tonejs.github.io/audio/salamander/E4.mp3',
-      });
-    };
-    loadSamples();
-  }, []);
+  // Audio samples will be loaded dynamically when clips are added to timeline
+  // No need to preload placeholder samples
 
   return (
     <Layout>

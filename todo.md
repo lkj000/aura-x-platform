@@ -315,3 +315,8 @@
 - [ ] Implement download functionality
 - [ ] Add export to media library option
 - [ ] Test export quality and integrity
+
+
+## Bug Fixes (Current)
+- [x] Remove placeholder Tone.js sample loading code causing external URL errors
+- [x] Clean up mock data in Home.tsx
