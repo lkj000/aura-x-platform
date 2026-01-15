@@ -608,6 +608,134 @@ export const appRouter = router({
       }),
   }),
 
+  // Collaboration router
+  collaboration: router({
+    // Get collaborators for a project
+    listCollaborators: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getProjectCollaborators(input.projectId);
+      }),
+
+    // Invite user to project
+    invite: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        inviteeEmail: z.string().email(),
+        role: z.enum(['admin', 'editor', 'viewer']).default('viewer'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Generate unique invitation token
+        const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+        const invitation = await db.createProjectInvitation({
+          projectId: input.projectId,
+          inviterUserId: ctx.user.id,
+          inviteeEmail: input.inviteeEmail,
+          role: input.role,
+          token,
+          expiresAt,
+        });
+
+        // Log activity
+        await db.logProjectActivity({
+          projectId: input.projectId,
+          userId: ctx.user.id,
+          action: 'invited',
+          entityType: 'collaborator',
+          details: { email: input.inviteeEmail, role: input.role },
+        });
+
+        return { invitation, inviteUrl: `/invite/${token}` };
+      }),
+
+    // Accept invitation
+    acceptInvitation: protectedProcedure
+      .input(z.object({ token: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const invitation = await db.getProjectInvitationByToken(input.token);
+        
+        if (!invitation) {
+          throw new Error('Invitation not found');
+        }
+        
+        if (invitation.status !== 'pending') {
+          throw new Error('Invitation already processed');
+        }
+        
+        if (new Date() > new Date(invitation.expiresAt)) {
+          throw new Error('Invitation expired');
+        }
+
+        // Add as collaborator
+        await db.addProjectCollaborator({
+          projectId: invitation.projectId,
+          userId: ctx.user.id,
+          role: invitation.role,
+          invitedBy: invitation.inviterUserId,
+          status: 'accepted',
+          acceptedAt: new Date(),
+        });
+
+        // Update invitation
+        await db.acceptProjectInvitation(invitation.id);
+
+        // Log activity
+        await db.logProjectActivity({
+          projectId: invitation.projectId,
+          userId: ctx.user.id,
+          action: 'joined',
+          entityType: 'collaborator',
+          details: { role: invitation.role },
+        });
+
+        return { success: true, projectId: invitation.projectId };
+      }),
+
+    // Update collaborator role
+    updateRole: protectedProcedure
+      .input(z.object({
+        collabId: z.number(),
+        role: z.enum(['owner', 'admin', 'editor', 'viewer']),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateCollaboratorRole(input.collabId, input.role);
+        return { success: true };
+      }),
+
+    // Remove collaborator
+    remove: protectedProcedure
+      .input(z.object({ collabId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.removeProjectCollaborator(input.collabId);
+        return { success: true };
+      }),
+
+    // Get project activity log
+    getActivity: protectedProcedure
+      .input(z.object({ 
+        projectId: z.number(),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ input }) => {
+        return db.getProjectActivity(input.projectId, input.limit);
+      }),
+
+    // Get pending invitations for current user
+    getPendingInvitations: protectedProcedure
+      .query(async ({ ctx }) => {
+        return db.getPendingInvitations(ctx.user.id);
+      }),
+
+    // Check user's role in project
+    getRole: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.getUserProjectRole(ctx.user.id, input.projectId);
+      }),
+  }),
+
   // Quality Scoring router
   qualityScoring: router({
     analyze: protectedProcedure

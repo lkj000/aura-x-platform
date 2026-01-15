@@ -29,6 +29,7 @@ import {
 import InstrumentSelector from '@/components/daw/InstrumentSelector';
 import CulturalInspector from '@/components/daw/CulturalInspector';
 import SampleBrowser from '@/components/SampleBrowser';
+import AudioEffectsChain, { type Effect } from '@/components/AudioEffectsChain';
 import GenerationHistory from '@/components/GenerationHistory';
 import { ExportDialog } from '@/components/ExportDialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -50,6 +51,8 @@ export default function Home() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSampleBrowser, setShowSampleBrowser] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
+  const [trackEffects, setTrackEffects] = useState<Record<number, Effect[]>>({});
+  const [masterEffects, setMasterEffects] = useState<Effect[]>([]);
   const [showExportDialog, setShowExportDialog] = useState(false);
   
   // Query all tracks and clips for playback
@@ -310,6 +313,12 @@ export default function Home() {
                   >
                     Inspector
                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="effects" 
+                    className="data-[state=active]:bg-background data-[state=active]:border-t-2 data-[state=active]:border-primary rounded-none h-full px-4"
+                  >
+                    Effects
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -327,6 +336,17 @@ export default function Home() {
 
               <TabsContent value="inspector" className="flex-1 m-0 p-0 overflow-hidden bg-background/50">
                 <CulturalInspector />
+              </TabsContent>
+
+              <TabsContent value="effects" className="flex-1 m-0 p-4 overflow-auto bg-background/50">
+                <div className="space-y-4">
+                  <AudioEffectsChain
+                    isMaster
+                    effects={masterEffects}
+                    onChange={setMasterEffects}
+                  />
+                  {/* Track-specific effects would go here based on selected track */}
+                </div>
               </TabsContent>
             </Tabs>
           </ResizablePanel>

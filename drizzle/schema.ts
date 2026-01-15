@@ -270,3 +270,57 @@ export const customPresets = mysqlTable("custom_presets", {
 
 export type CustomPreset = typeof customPresets.$inferSelect;
 export type InsertCustomPreset = typeof customPresets.$inferInsert;
+
+/**
+ * Project Collaborators table - Users who have access to a project
+ */
+export const projectCollaborators = mysqlTable("project_collaborators", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(), // Foreign key to projects
+  userId: int("userId").notNull(), // Foreign key to users
+  role: mysqlEnum("role", ["owner", "admin", "editor", "viewer"]).default("viewer").notNull(),
+  invitedBy: int("invitedBy").notNull(), // User ID who sent the invitation
+  invitedAt: timestamp("invitedAt").defaultNow().notNull(),
+  acceptedAt: timestamp("acceptedAt"),
+  status: mysqlEnum("status", ["pending", "accepted", "declined", "revoked"]).default("pending").notNull(),
+});
+
+export type ProjectCollaborator = typeof projectCollaborators.$inferSelect;
+export type InsertProjectCollaborator = typeof projectCollaborators.$inferInsert;
+
+/**
+ * Project Activity Log table - Track changes made to projects for collaboration
+ */
+export const projectActivityLog = mysqlTable("project_activity_log", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(), // Foreign key to projects
+  userId: int("userId").notNull(), // User who performed the action
+  action: varchar("action", { length: 50 }).notNull(), // "created", "updated", "deleted", "shared", "exported"
+  entityType: varchar("entityType", { length: 50 }).notNull(), // "project", "track", "clip", "effect"
+  entityId: int("entityId"), // ID of the affected entity
+  details: json("details"), // Additional context about the action
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export type ProjectActivityLog = typeof projectActivityLog.$inferSelect;
+export type InsertProjectActivityLog = typeof projectActivityLog.$inferInsert;
+
+/**
+ * Project Invitations table - Pending invitations to collaborate
+ */
+export const projectInvitations = mysqlTable("project_invitations", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(), // Foreign key to projects
+  inviterUserId: int("inviterUserId").notNull(), // User who sent the invitation
+  inviteeEmail: varchar("inviteeEmail", { length: 320 }).notNull(), // Email of invitee
+  inviteeUserId: int("inviteeUserId"), // User ID if they're already registered
+  role: mysqlEnum("role", ["admin", "editor", "viewer"]).default("viewer").notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(), // Unique invitation token
+  status: mysqlEnum("status", ["pending", "accepted", "declined", "expired"]).default("pending").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  acceptedAt: timestamp("acceptedAt"),
+});
+
+export type ProjectInvitation = typeof projectInvitations.$inferSelect;
+export type InsertProjectInvitation = typeof projectInvitations.$inferInsert;

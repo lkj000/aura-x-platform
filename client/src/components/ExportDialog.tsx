@@ -12,8 +12,11 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Info } from 'lucide-react';
 import { audioExporter, AudioClip, ExportOptions } from '@/services/AudioExporter';
+import { exportTemplates, type ExportTemplate } from '@/data/exportTemplates';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card } from '@/components/ui/card';
 
 interface ExportDialogProps {
   open: boolean;
@@ -23,11 +26,13 @@ interface ExportDialogProps {
 }
 
 export function ExportDialog({ open, onOpenChange, clips, projectName = 'Untitled' }: ExportDialogProps) {
+  const [selectedTemplate, setSelectedTemplate] = useState<ExportTemplate | null>(null);
   const [format, setFormat] = useState<'wav' | 'mp3'>('wav');
   const [bitrate, setBitrate] = useState('192');
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+  const [useTemplate, setUseTemplate] = useState(true);
 
   const handleExport = async () => {
     if (clips.length === 0) {
@@ -46,7 +51,15 @@ export function ExportDialog({ open, onOpenChange, clips, projectName = 'Untitle
       });
 
       // Export options
-      const options: ExportOptions = {
+      // Map template format to supported export formats (flac/aac -> wav for now)
+      const templateFormat = selectedTemplate?.settings.format;
+      const exportFormat = (templateFormat === 'flac' || templateFormat === 'aac') ? 'wav' : templateFormat;
+      
+      const options: ExportOptions = useTemplate && selectedTemplate ? {
+        format: exportFormat || 'wav',
+        bitrate: selectedTemplate.settings.bitrate,
+        sampleRate: selectedTemplate.settings.sampleRate,
+      } : {
         format,
         bitrate: format === 'mp3' ? parseInt(bitrate) : undefined,
         sampleRate: 44100,
@@ -99,11 +112,62 @@ export function ExportDialog({ open, onOpenChange, clips, projectName = 'Untitle
         <DialogHeader>
           <DialogTitle>Export Audio</DialogTitle>
           <DialogDescription>
-            Export your timeline to an audio file. Choose format and quality settings.
+            Export your timeline with platform-optimized settings or custom configuration.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <Tabs value={useTemplate ? 'templates' : 'custom'} onValueChange={(v) => setUseTemplate(v === 'templates')} className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="templates">Platform Templates</TabsTrigger>
+            <TabsTrigger value="custom">Custom Settings</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="templates" className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto">
+              {exportTemplates.map((template) => (
+                <Card
+                  key={template.id}
+                  className={`p-4 cursor-pointer transition-all hover:border-primary ${
+                    selectedTemplate?.id === template.id ? 'border-primary bg-primary/5' : ''
+                  }`}
+                  onClick={() => setSelectedTemplate(template)}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl">{template.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm">{template.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {template.description}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                        <span>{template.settings.format.toUpperCase()}</span>
+                        <span>•</span>
+                        <span>{template.settings.targetLUFS} LUFS</span>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {selectedTemplate && (
+              <Card className="p-4 bg-muted/30">
+                <div className="flex items-start gap-2 mb-3">
+                  <Info className="h-4 w-4 text-primary mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-sm mb-2">Recommendations</h4>
+                    <ul className="text-xs text-muted-foreground space-y-1">
+                      {selectedTemplate.recommendations.map((rec, i) => (
+                        <li key={i}>• {rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="custom" className="space-y-6 mt-4">
           {/* Format Selection */}
           <div className="space-y-3">
             <Label>Format</Label>
@@ -168,7 +232,8 @@ export function ExportDialog({ open, onOpenChange, clips, projectName = 'Untitle
           <div className="text-sm text-muted-foreground">
             <p>{clips.length} clip{clips.length !== 1 ? 's' : ''} will be exported</p>
           </div>
-        </div>
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={exporting}>
