@@ -233,3 +233,40 @@ export const midiNotes = mysqlTable("midi_notes", {
 
 export type MidiNote = typeof midiNotes.$inferSelect;
 export type InsertMidiNote = typeof midiNotes.$inferInsert;
+
+/**
+ * Preset Favorites table - User's favorited presets
+ */
+export const presetFavorites = mysqlTable("preset_favorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to users
+  presetId: varchar("presetId", { length: 255 }).notNull(), // ID of the built-in preset
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PresetFavorite = typeof presetFavorites.$inferSelect;
+export type InsertPresetFavorite = typeof presetFavorites.$inferInsert;
+
+/**
+ * Custom Presets table - User-created presets based on successful generations
+ */
+export const customPresets = mysqlTable("custom_presets", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to users
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).notNull(), // "production", "creative", "experimental"
+  style: varchar("style", { length: 50 }).notNull(), // "kasi", "private-school", "bacardi", etc.
+  icon: varchar("icon", { length: 50 }).notNull(), // Emoji or icon name
+  prompt: text("prompt").notNull(),
+  parameters: json("parameters").notNull(), // { tempo, temperature, topK, topP, cfgScale, key, duration }
+  culturalElements: json("culturalElements").notNull(), // Array of cultural elements
+  tags: json("tags").notNull(), // Array of tags
+  basedOnGenerationId: int("basedOnGenerationId"), // Optional: link to generation that inspired this preset
+  usageCount: int("usageCount").default(0).notNull(), // Track how often this preset is used
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CustomPreset = typeof customPresets.$inferSelect;
+export type InsertCustomPreset = typeof customPresets.$inferInsert;

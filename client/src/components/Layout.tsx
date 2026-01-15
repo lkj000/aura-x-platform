@@ -9,7 +9,8 @@ import {
   Activity,
   Menu,
   Bell,
-  User
+  User,
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,7 @@ export default function Layout({ children }: LayoutProps) {
     { icon: Disc, label: 'Projects', path: '/projects' },
     { icon: Mic2, label: 'Instruments', path: '/instruments' },
     { icon: Activity, label: 'Analysis', path: '/analysis' },
+    { icon: History, label: 'History', path: '/history' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

@@ -111,7 +111,10 @@ export async function separateStems(params: StemSeparationParams): Promise<StemS
   try {
     console.log('[ModalClient] Separating stems for:', params.audioUrl);
     
-    const response = await modalClient.post<StemSeparationResponse>('/separate-stems', params);
+    const response = await modalClient.post<StemSeparationResponse>('/separate_stems', {
+      audio_url: params.audioUrl,
+      stem_types: params.stemTypes || ['vocals', 'drums', 'bass', 'other'],
+    });
     
     return response.data;
   } catch (error) {

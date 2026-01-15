@@ -50,6 +50,13 @@
       "when": 1768423740018,
       "tag": "0006_cynical_maestro",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1768509694853,
+      "tag": "0007_black_arachne",
+      "breakpoints": true
     }
   ]
 }

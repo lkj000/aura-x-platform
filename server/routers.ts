@@ -479,6 +479,135 @@ export const appRouter = router({
       }),
   }),
 
+  // Stem Separation router
+  stemSeparation: router({
+    separate: protectedProcedure
+      .input(z.object({
+        audioUrl: z.string(),
+        trackName: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          console.log('[Stem Separation] Starting separation for:', input.audioUrl);
+          
+          // Call Modal Demucs endpoint
+          const result = await modalClient.separateStems({
+            audioUrl: input.audioUrl,
+            stemTypes: ['vocals', 'drums', 'bass', 'other'],
+          });
+          
+          return result;
+        } catch (error) {
+          console.error('[Stem Separation] Error:', error);
+          throw new Error('Stem separation failed. Make sure Modal AI services are deployed.');
+        }
+      }),
+
+    status: protectedProcedure
+      .input(z.object({ jobId: z.string() }))
+      .query(async ({ input }) => {
+        try {
+          const status = await modalClient.checkJobStatus(input.jobId);
+          return status;
+        } catch (error) {
+          console.error('[Stem Separation] Status check error:', error);
+          throw new Error('Failed to check stem separation status');
+        }
+      }),
+  }),
+
+  // Preset Favorites router
+  presetFavorites: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return db.getUserPresetFavorites(ctx.user.id);
+    }),
+
+    add: protectedProcedure
+      .input(z.object({ presetId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.addPresetFavorite(ctx.user.id, input.presetId);
+      }),
+
+    remove: protectedProcedure
+      .input(z.object({ presetId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.removePresetFavorite(ctx.user.id, input.presetId);
+        return { success: true };
+      }),
+
+    check: protectedProcedure
+      .input(z.object({ presetId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        return db.isPresetFavorited(ctx.user.id, input.presetId);
+      }),
+  }),
+
+  // Custom Presets router
+  customPresets: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return db.getUserCustomPresets(ctx.user.id);
+    }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getCustomPresetById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        category: z.string(),
+        style: z.string(),
+        icon: z.string(),
+        prompt: z.string(),
+        parameters: z.any(),
+        culturalElements: z.array(z.string()),
+        tags: z.array(z.string()),
+        basedOnGenerationId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createCustomPreset({
+          userId: ctx.user.id,
+          ...input,
+        });
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        style: z.string().optional(),
+        icon: z.string().optional(),
+        prompt: z.string().optional(),
+        parameters: z.any().optional(),
+        culturalElements: z.array(z.string()).optional(),
+        tags: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        await db.updateCustomPreset(id, updates);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteCustomPreset(input.id);
+        return { success: true };
+      }),
+
+    incrementUsage: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.incrementCustomPresetUsage(input.id);
+        return { success: true };
+      }),
+  }),
+
   // Quality Scoring router
   qualityScoring: router({
     analyze: protectedProcedure

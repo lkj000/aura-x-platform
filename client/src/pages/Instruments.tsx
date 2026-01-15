@@ -70,6 +70,25 @@ export default function Instruments() {
 
   const utils = trpc.useUtils();
 
+  // Preset favorites
+  const presetFavoritesQuery = trpc.presetFavorites.list.useQuery();
+  const addFavoriteMutation = trpc.presetFavorites.add.useMutation();
+  const removeFavoriteMutation = trpc.presetFavorites.remove.useMutation();
+
+  const isFavorite = (presetId: string) => {
+    return presetFavoritesQuery.data?.some(fav => fav.presetId === presetId) || false;
+  };
+
+  const toggleFavorite = async (presetId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isFavorite(presetId)) {
+      await removeFavoriteMutation.mutateAsync({ presetId });
+    } else {
+      await addFavoriteMutation.mutateAsync({ presetId });
+    }
+    utils.presetFavorites.list.invalidate();
+  };
+
   const generateMusicMutation = trpc.generate.music.useMutation({
     onSuccess: (data) => {
       console.log('[Instruments] Generation started:', data);
@@ -409,7 +428,7 @@ export default function Instruments() {
                     {amapianoPresets.map((preset) => (
                       <button
                         key={preset.id}
-                        className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50"
+                        className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50 relative group"
                         onClick={() => {
                           setParams({
                             ...params,
@@ -428,6 +447,15 @@ export default function Instruments() {
                               {preset.description}
                             </div>
                           </div>
+                          <button
+                            onClick={(e) => toggleFavorite(preset.id, e)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-background rounded"
+                            disabled={isGenerating}
+                          >
+                            <span className={isFavorite(preset.id) ? 'text-yellow-500' : 'text-muted-foreground'}>
+                              {isFavorite(preset.id) ? '★' : '☆'}
+                            </span>
+                          </button>
                         </div>
                       </button>
                     ))}

@@ -45,6 +45,9 @@ export default function Analysis() {
     other: string;
   } | null>(null);
   const [isSeparatingStems, setIsSeparatingStems] = useState(false);
+  const [separationJobId, setSeparationJobId] = useState<string | null>(null);
+
+  const separateStemsMutation = trpc.stemSeparation.separate.useMutation();
 
   const mediaLibraryQuery = trpc.mediaLibrary.list.useQuery({
     limit: 50,
@@ -345,23 +348,64 @@ export default function Analysis() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {!stems && !isSeparatingStems && (
+                    {!stems && !isSeparatingStems && selectedTrackId && (
                       <Button
-                        onClick={() => {
-                          // TODO: Implement stem separation via Modal API
+                        onClick={async () => {
+                          const selectedTrack = mediaLibraryQuery.data?.find(t => t.id === selectedTrackId);
+                          if (!selectedTrack) return;
+
                           setIsSeparatingStems(true);
-                          // Demo: Use placeholder stems
-                          setTimeout(() => {
-                            setStems({
-                              vocals: mediaLibraryQuery.data?.[0]?.fileUrl || '',
-                              drums: mediaLibraryQuery.data?.[0]?.fileUrl || '',
-                              bass: mediaLibraryQuery.data?.[0]?.fileUrl || '',
-                              other: mediaLibraryQuery.data?.[0]?.fileUrl || '',
+                          
+                          try {
+                            // Call stem separation endpoint
+                            const result = await separateStemsMutation.mutateAsync({
+                              audioUrl: selectedTrack.fileUrl,
+                              trackName: selectedTrack.name,
                             });
+
+                            setSeparationJobId(result.jobId);
+
+                            // Poll for completion
+                            const pollStatus = async () => {
+                              const utils = trpc.useUtils();
+                              const status = await utils.client.stemSeparation.status.query({ jobId: result.jobId });
+                              
+                              if ('stems' in status && status.stems) {
+                                // Convert stems array to object
+                                const stemsObj: {
+                                  vocals: string;
+                                  drums: string;
+                                  bass: string;
+                                  other: string;
+                                } = {
+                                  vocals: '',
+                                  drums: '',
+                                  bass: '',
+                                  other: '',
+                                };
+                                status.stems.forEach((stem: { type: string; url: string }) => {
+                                  if (stem.type in stemsObj) {
+                                    (stemsObj as any)[stem.type] = stem.url;
+                                  }
+                                });
+                                setStems(stemsObj);
+                                setIsSeparatingStems(false);
+                              } else if (status.status === 'failed') {
+                                throw new Error('Stem separation failed');
+                              } else {
+                                // Still processing, poll again
+                                setTimeout(pollStatus, 3000);
+                              }
+                            };
+
+                            pollStatus();
+                          } catch (error) {
+                            console.error('[Analysis] Stem separation error:', error);
+                            alert('Stem separation failed. Make sure Modal AI services are deployed.');
                             setIsSeparatingStems(false);
-                          }, 2000);
+                          }
                         }}
-                        disabled={!mediaLibraryQuery.data?.length}
+                        disabled={!selectedTrackId}
                       >
                         <Waves className="h-4 w-4 mr-2" />
                         Separate Stems
