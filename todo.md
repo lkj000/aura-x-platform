@@ -483,3 +483,16 @@
 - [x] Database schemas ready for automation UI and marketplace
 - [x] Foundation established for canvas-based automation editor
 - [x] Foundation established for marketplace with search/browse/purchase
+
+## Session 8: Advanced Production Features
+- [ ] Build canvas-based automation curve editor with draggable points
+- [ ] Implement bezier handle editing for smooth automation curves
+- [ ] Add real-time parameter modulation during playback
+- [ ] Sync automation display with timeline zoom/scroll
+- [ ] Create marketplace search and browse interface
+- [ ] Implement audio preview player for sample packs
+- [ ] Build seller dashboard for pack upload and management
+- [ ] Add purchase flow with Stripe payment integration
+- [x] Implement command pattern for undo/redo system
+- [x] Create history stack for all DAW operations
+- [x] Integrate undo/redo with keyboard shortcuts (Ctrl+Z/Shift+Z)

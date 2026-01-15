@@ -35,6 +35,7 @@ import { ExportDialog } from '@/components/ExportDialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { History, Library } from 'lucide-react';
 import { keyboardShortcuts, defaultShortcuts } from '@/services/KeyboardShortcuts';
+import { useUndoRedo } from '@/hooks/useUndoRedo';
 
 export default function Home() {
   const { 
@@ -56,6 +57,7 @@ export default function Home() {
   const [masterEffects, setMasterEffects] = useState<Effect[]>([]);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const { canUndo, canRedo, undo, redo, undoDescription, redoDescription } = useUndoRedo();
 
   // Initialize keyboard shortcuts
   useEffect(() => {
@@ -66,8 +68,22 @@ export default function Home() {
       { ...defaultShortcuts.stop, id: 'stop', handler: () => stop() },
       { ...defaultShortcuts.save, id: 'save', handler: () => toast.success('Project saved!') },
       { ...defaultShortcuts.export, id: 'export', handler: () => setShowExportDialog(true) },
-      { ...defaultShortcuts.undo, id: 'undo', handler: () => toast.info('Undo (coming soon)') },
-      { ...defaultShortcuts.redo, id: 'redo', handler: () => toast.info('Redo (coming soon)') },
+      { ...defaultShortcuts.undo, id: 'undo', handler: async () => {
+        if (canUndo) {
+          await undo();
+          toast.success(`Undone: ${undoDescription}`);
+        } else {
+          toast.info('Nothing to undo');
+        }
+      }},
+      { ...defaultShortcuts.redo, id: 'redo', handler: async () => {
+        if (canRedo) {
+          await redo();
+          toast.success(`Redone: ${redoDescription}`);
+        } else {
+          toast.info('Nothing to redo');
+        }
+      }},
       { ...defaultShortcuts.zoomIn, id: 'zoomIn', handler: () => setZoom(prev => Math.min(prev + 0.1, 2)) },
       { ...defaultShortcuts.zoomOut, id: 'zoomOut', handler: () => setZoom(prev => Math.max(prev - 0.1, 0.1)) },
     ];
