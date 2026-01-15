@@ -38,26 +38,18 @@ export default function Analysis() {
     limit: 50,
   });
 
-  const handleAnalyze = async (trackUrl: string) => {
+  const analyzeMutation = trpc.qualityScoring.analyze.useMutation();
+
+  const handleAnalyze = async (trackUrl: string, trackName?: string) => {
     setIsAnalyzing(true);
     
     try {
-      // Call quality scoring service
-      const response = await fetch('http://localhost:8001/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audio_url: trackUrl,
-          genre: 'amapiano',
-          target_loudness: -14.0,
-        }),
+      // Call quality scoring service via tRPC
+      const result = await analyzeMutation.mutateAsync({
+        audioUrl: trackUrl,
+        trackName: trackName,
       });
 
-      if (!response.ok) {
-        throw new Error('Quality analysis failed');
-      }
-
-      const result = await response.json();
       setQualityScore(result);
     } catch (error) {
       console.error('[Analysis] Failed:', error);

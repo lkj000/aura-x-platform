@@ -478,6 +478,45 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // Quality Scoring router
+  qualityScoring: router({
+    analyze: protectedProcedure
+      .input(z.object({
+        audioUrl: z.string(),
+        trackName: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const response = await fetch('http://localhost:8001/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audio_url: input.audioUrl,
+              track_name: input.trackName,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Quality scoring service returned ${response.status}`);
+          }
+
+          return await response.json();
+        } catch (error) {
+          console.error('[Quality Scoring] Error:', error);
+          throw new Error('Quality analysis failed. Make sure quality scoring service is running on port 8001.');
+        }
+      }),
+
+    health: publicProcedure.query(async () => {
+      try {
+        const response = await fetch('http://localhost:8001/health');
+        return await response.json();
+      } catch (error) {
+        return { status: 'unavailable', error: 'Quality scoring service not reachable' };
+      }
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

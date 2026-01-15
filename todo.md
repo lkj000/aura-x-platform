@@ -426,3 +426,13 @@
 - [ ] Configure Modal API keys (MODAL_API_KEY, MODAL_BASE_URL)
 - [ ] Deploy Modal AI endpoints (modal deploy modal_deploy.py)
 - [ ] Test complete autonomous workflow end-to-end
+
+
+## Modal AI Endpoints Deployment (Current)
+- [x] Configure MODAL_API_KEY environment variable
+- [x] Configure MODAL_BASE_URL environment variable
+- [ ] Deploy modal_deploy.py to Modal.com
+- [ ] Test MusicGen generation endpoint
+- [ ] Test Demucs stem separation endpoint
+- [ ] Test mastering endpoint
+- [ ] Test complete autonomous workflow with real AI generation
