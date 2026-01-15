@@ -324,3 +324,78 @@ export const projectInvitations = mysqlTable("project_invitations", {
 
 export type ProjectInvitation = typeof projectInvitations.$inferSelect;
 export type InsertProjectInvitation = typeof projectInvitations.$inferInsert;
+
+// Automation Lanes
+export const automationLanes = mysqlTable('automation_lanes', {
+  id: int('id').primaryKey().autoincrement(),
+  projectId: int('projectId').notNull(),
+  trackId: int('trackId'), // null for master automation
+  parameter: varchar('parameter', { length: 255 }).notNull(),
+  enabled: boolean('enabled').default(true),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+});
+
+export const automationPoints = mysqlTable('automation_points', {
+  id: int('id').primaryKey().autoincrement(),
+  laneId: int('laneId').notNull(),
+  time: decimal('time', { precision: 10, scale: 3 }).$type<number>().notNull(),
+  value: decimal('value', { precision: 5, scale: 4 }).$type<number>().notNull(),
+  curveType: varchar('curveType', { length: 50 }).default('linear'),
+  handleInX: decimal('handleInX', { precision: 10, scale: 3 }).$type<number>(),
+  handleInY: decimal('handleInY', { precision: 5, scale: 4 }).$type<number>(),
+  handleOutX: decimal('handleOutX', { precision: 10, scale: 3 }).$type<number>(),
+  handleOutY: decimal('handleOutY', { precision: 5, scale: 4 }).$type<number>(),
+  createdAt: timestamp('createdAt').defaultNow(),
+});
+
+export type AutomationLane = typeof automationLanes.$inferSelect;
+export type InsertAutomationLane = typeof automationLanes.$inferInsert;
+export type AutomationPoint = typeof automationPoints.$inferSelect;
+export type InsertAutomationPoint = typeof automationPoints.$inferInsert;
+
+// Sample Pack Marketplace
+export const marketplaceSamplePacks = mysqlTable('marketplace_sample_packs', {
+  id: int('id').primaryKey().autoincrement(),
+  sellerId: int('sellerId').notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  price: decimal('price', { precision: 10, scale: 2 }).$type<number>().notNull(),
+  category: varchar('category', { length: 100 }).notNull(),
+  tags: json('tags'),
+  coverImage: varchar('coverImage', { length: 500 }),
+  previewAudio: varchar('previewAudio', { length: 500 }),
+  fileUrl: varchar('fileUrl', { length: 500 }).notNull(),
+  fileSize: int('fileSize'),
+  sampleCount: int('sampleCount'),
+  downloads: int('downloads').default(0),
+  rating: decimal('rating', { precision: 3, scale: 2 }).$type<number>().default(0),
+  reviewCount: int('reviewCount').default(0),
+  status: mysqlEnum('status', ['active', 'pending', 'rejected']).default('active'),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+});
+
+export const marketplacePurchases = mysqlTable('marketplace_purchases', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('userId').notNull(),
+  packId: int('packId').notNull(),
+  amount: decimal('amount', { precision: 10, scale: 2 }).$type<number>().notNull(),
+  status: mysqlEnum('status', ['completed', 'pending', 'refunded']).default('completed'),
+  purchasedAt: timestamp('purchasedAt').defaultNow(),
+});
+
+export const marketplaceReviews = mysqlTable('marketplace_reviews', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('userId').notNull(),
+  packId: int('packId').notNull(),
+  rating: int('rating').notNull(),
+  comment: text('comment'),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+});
+
+export type MarketplaceSamplePack = typeof marketplaceSamplePacks.$inferSelect;
+export type InsertMarketplaceSamplePack = typeof marketplaceSamplePacks.$inferInsert;
+export type MarketplacePurchase = typeof marketplacePurchases.$inferSelect;
+export type MarketplaceReview = typeof marketplaceReviews.$inferSelect;

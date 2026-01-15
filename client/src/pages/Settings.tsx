@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Loader2, Server, Key, Database, Zap } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Server, Key, Database, Zap, Music } from 'lucide-react';
 import SampleUpload from '@/components/SampleUpload';
 import ModalConfiguration from '@/components/ModalConfiguration';
+import MIDIMappingPanel from '@/components/MIDIMapping';
 import { toast } from 'sonner';
 
 export default function Settings() {
@@ -56,7 +57,7 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="modal" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="modal">
               <Server className="h-4 w-4 mr-2" />
               Modal AI
@@ -64,6 +65,10 @@ export default function Settings() {
             <TabsTrigger value="audio">
               <Zap className="h-4 w-4 mr-2" />
               Audio
+            </TabsTrigger>
+            <TabsTrigger value="midi">
+              <Music className="h-4 w-4 mr-2" />
+              MIDI
             </TabsTrigger>
             <TabsTrigger value="database">
               <Database className="h-4 w-4 mr-2" />
@@ -176,6 +181,10 @@ export default function Settings() {
                 <SampleUpload />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="midi" className="space-y-4 mt-6">
+            <MIDIMappingPanel />
           </TabsContent>
 
           <TabsContent value="database" className="space-y-4 mt-6">
