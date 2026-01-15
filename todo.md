@@ -496,3 +496,16 @@
 - [x] Implement command pattern for undo/redo system
 - [x] Create history stack for all DAW operations
 - [x] Integrate undo/redo with keyboard shortcuts (Ctrl+Z/Shift+Z)
+
+## Session 9: Timeline Undo/Redo & Automation Editor
+- [x] Integrate AddAudioClipCommand with Timeline drag-and-drop
+- [x] Connect UpdateClipPositionCommand to clip movement
+- [x] Add DeleteAudioClipCommand to clip deletion
+- [x] Build visual history panel component
+- [x] Add timestamp and description display for history items
+- [x] Implement click-to-jump navigation in history
+- [x] Create canvas-based automation curve editor with grid and curve rendering
+- [x] Implement draggable automation points with click-to-add functionality
+- [x] Add bezier curve support (foundation for smooth curves)
+- [x] Implement zoom synchronization with timeline
+- [x] Test all features end-to-end (7 passing tests)

@@ -36,6 +36,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { History, Library } from 'lucide-react';
 import { keyboardShortcuts, defaultShortcuts } from '@/services/KeyboardShortcuts';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
+import { HistoryPanel } from '@/components/HistoryPanel';
 
 export default function Home() {
   const { 
@@ -359,6 +360,12 @@ export default function Home() {
                   >
                     Effects
                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="history" 
+                    className="data-[state=active]:bg-background data-[state=active]:border-t-2 data-[state=active]:border-primary rounded-none h-full px-4"
+                  >
+                    History
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -387,6 +394,10 @@ export default function Home() {
                   />
                   {/* Track-specific effects would go here based on selected track */}
                 </div>
+              </TabsContent>
+
+              <TabsContent value="history" className="flex-1 m-0 p-4 overflow-hidden bg-background/50">
+                <HistoryPanel />
               </TabsContent>
             </Tabs>
           </ResizablePanel>

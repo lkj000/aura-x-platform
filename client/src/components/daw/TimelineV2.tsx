@@ -15,6 +15,8 @@ import {
 import { trpc } from '@/lib/trpc';
 import { AudioEngine } from '@/services/AudioEngine';
 import type { Track, AudioClip } from '@/../../drizzle/schema';
+import { useUndoRedo } from '@/hooks/useUndoRedo';
+import { AddAudioClipCommand, DeleteAudioClipCommand, UpdateClipPositionCommand } from '@/services/UndoRedoManager';
 
 interface TimelineProps {
   projectId: number;
@@ -52,6 +54,7 @@ export default function TimelineV2({
   const updateClipMutation = trpc.audioClips.update.useMutation();
   const deleteClipMutation = trpc.audioClips.delete.useMutation();
   const utils = trpc.useUtils();
+  const { executeCommand } = useUndoRedo();
 
   // Load tracks and clips
   useEffect(() => {
@@ -104,8 +107,8 @@ export default function TimelineV2({
       const buffer = await AudioEngine.loadAudioFile(item.fileUrl);
       const duration = buffer.duration;
       
-      // Create audio clip
-      const clip = await createClipMutation.mutateAsync({
+      // Create audio clip with undo/redo support
+      const clipData = {
         trackId,
         name: item.name,
         fileUrl: item.fileUrl,
@@ -115,17 +118,31 @@ export default function TimelineV2({
         fadeIn: 0,
         fadeOut: 0,
         gain: 1.0,
-      });
+      };
       
-      // Add to local state
       const track = tracks.find(t => t.id === trackId);
-      if (track) {
-        setClips(prev => [...prev, {
-          ...clip,
-          trackName: track.name,
-          trackColor: getTrackColor(track.type),
-        }]);
-      }
+      
+      const command = new AddAudioClipCommand(
+        clipData,
+        async (data) => {
+          const clip = await createClipMutation.mutateAsync(data);
+          // Add to local state
+          if (track) {
+            setClips(prev => [...prev, {
+              ...clip,
+              trackName: track.name,
+              trackColor: getTrackColor(track.type),
+            }]);
+          }
+          return clip.id;
+        },
+        async (id) => {
+          await deleteClipMutation.mutateAsync({ id });
+          setClips(prev => prev.filter(c => c.id !== id));
+        }
+      );
+      
+      await executeCommand(command);
       
       // Load audio into engine
       await AudioEngine.loadAudioFile(item.fileUrl);
@@ -163,16 +180,23 @@ export default function TimelineV2({
     if (!isDragging || selectedClipId === null) return;
     
     const clip = clips.find(c => c.id === selectedClipId);
-    if (clip) {
-      // Save to database
-      await updateClipMutation.mutateAsync({
-        id: selectedClipId,
-        startTime: clip.startTime,
-      });
+    if (clip && clip.startTime !== dragStartTime) {
+      // Save to database with undo/redo support
+      const command = new UpdateClipPositionCommand(
+        selectedClipId,
+        dragStartTime,
+        clip.startTime,
+        async (id, position) => {
+          await updateClipMutation.mutateAsync({ id, startTime: position });
+          setClips(prev => prev.map(c => c.id === id ? { ...c, startTime: position } : c));
+        }
+      );
+      
+      await executeCommand(command);
     }
     
     setIsDragging(false);
-  }, [isDragging, selectedClipId, clips, updateClipMutation]);
+  }, [isDragging, selectedClipId, clips, updateClipMutation, dragStartTime, executeCommand]);
 
   useEffect(() => {
     if (isDragging) {
@@ -196,10 +220,44 @@ export default function TimelineV2({
     onTimeChange(time);
   };
 
-  // Handle clip delete
+  // Handle clip delete with undo/redo support
   const handleDeleteClip = async (clipId: number) => {
-    await deleteClipMutation.mutateAsync({ id: clipId });
-    setClips(prev => prev.filter(c => c.id !== clipId));
+    const command = new DeleteAudioClipCommand(
+      clipId,
+      async (data) => {
+        const clip = await createClipMutation.mutateAsync(data);
+        const track = tracks.find(t => t.id === data.trackId);
+        if (track) {
+          setClips(prev => [...prev, {
+            ...clip,
+            trackName: track.name,
+            trackColor: getTrackColor(track.type),
+          }]);
+        }
+        return clip.id;
+      },
+      async (id) => {
+        await deleteClipMutation.mutateAsync({ id });
+        setClips(prev => prev.filter(c => c.id !== id));
+      },
+      async (id) => {
+        const clip = clips.find(c => c.id === id);
+        if (!clip) throw new Error('Clip not found');
+        return {
+          trackId: clip.trackId,
+          name: clip.name,
+          fileUrl: clip.fileUrl,
+          startTime: clip.startTime,
+          duration: clip.duration,
+          offset: clip.offset,
+          fadeIn: clip.fadeIn,
+          fadeOut: clip.fadeOut,
+          gain: clip.gain,
+        };
+      }
+    );
+    
+    await executeCommand(command);
     setSelectedClipId(null);
   };
 
