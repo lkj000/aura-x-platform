@@ -155,7 +155,8 @@ def detect_tempo(audio: np.ndarray, sr: int) -> float:
     Detect tempo using librosa
     """
     tempo, _ = librosa.beat.beat_track(y=audio, sr=sr)
-    return float(tempo)
+    # Handle numpy array or scalar
+    return float(tempo[0] if isinstance(tempo, np.ndarray) else tempo)
 
 def detect_key(audio: np.ndarray, sr: int) -> str:
     """

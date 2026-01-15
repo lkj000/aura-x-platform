@@ -436,3 +436,10 @@
 - [ ] Test Demucs stem separation endpoint
 - [ ] Test mastering endpoint
 - [ ] Test complete autonomous workflow with real AI generation
+
+## Follow-up Tasks (Session 2)
+- [x] Implement drag-and-drop from Sample Browser to Timeline with drop zone handlers
+- [x] Test quality analysis workflow end-to-end with uploaded Amapiano samples
+- [x] Upgrade Modal plan to enable AI endpoint deployment (stopped amapianoriz app)
+- [x] Deploy Modal AI endpoints (deployed at https://mabgwej--aura-x-ai-fastapi-app.modal.run)
+- [x] Test complete autonomous workflow from generation to quality analysis
