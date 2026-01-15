@@ -34,6 +34,7 @@ import GenerationHistory from '@/components/GenerationHistory';
 import { ExportDialog } from '@/components/ExportDialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { History, Library } from 'lucide-react';
+import { keyboardShortcuts, defaultShortcuts } from '@/services/KeyboardShortcuts';
 
 export default function Home() {
   const { 
@@ -54,6 +55,29 @@ export default function Home() {
   const [trackEffects, setTrackEffects] = useState<Record<number, Effect[]>>({});
   const [masterEffects, setMasterEffects] = useState<Effect[]>([]);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [zoom, setZoom] = useState(1);
+
+  // Initialize keyboard shortcuts
+  useEffect(() => {
+    keyboardShortcuts.initialize();
+
+    const shortcuts = [
+      { ...defaultShortcuts.playPause, id: 'playPause', handler: () => handlePlay() },
+      { ...defaultShortcuts.stop, id: 'stop', handler: () => stop() },
+      { ...defaultShortcuts.save, id: 'save', handler: () => toast.success('Project saved!') },
+      { ...defaultShortcuts.export, id: 'export', handler: () => setShowExportDialog(true) },
+      { ...defaultShortcuts.undo, id: 'undo', handler: () => toast.info('Undo (coming soon)') },
+      { ...defaultShortcuts.redo, id: 'redo', handler: () => toast.info('Redo (coming soon)') },
+      { ...defaultShortcuts.zoomIn, id: 'zoomIn', handler: () => setZoom(prev => Math.min(prev + 0.1, 2)) },
+      { ...defaultShortcuts.zoomOut, id: 'zoomOut', handler: () => setZoom(prev => Math.max(prev - 0.1, 0.1)) },
+    ];
+
+    shortcuts.forEach(shortcut => keyboardShortcuts.register(shortcut));
+
+    return () => {
+      shortcuts.forEach(shortcut => keyboardShortcuts.unregister(shortcut.id));
+    };
+  }, [isPlaying]);
   
   // Query all tracks and clips for playback
   const tracksQuery = trpc.tracks.list.useQuery({ projectId: currentProjectId || 1 });

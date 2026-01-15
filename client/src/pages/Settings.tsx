@@ -11,6 +11,7 @@ import { CheckCircle2, XCircle, Loader2, Server, Key, Database, Zap, Music } fro
 import SampleUpload from '@/components/SampleUpload';
 import ModalConfiguration from '@/components/ModalConfiguration';
 import MIDIMappingPanel from '@/components/MIDIMapping';
+import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel';
 import { toast } from 'sonner';
 
 export default function Settings() {
@@ -57,7 +58,7 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="modal" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="modal">
               <Server className="h-4 w-4 mr-2" />
               Modal AI
@@ -73,6 +74,10 @@ export default function Settings() {
             <TabsTrigger value="database">
               <Database className="h-4 w-4 mr-2" />
               Database
+            </TabsTrigger>
+            <TabsTrigger value="shortcuts">
+              <Key className="h-4 w-4 mr-2" />
+              Shortcuts
             </TabsTrigger>
             <TabsTrigger value="advanced">
               <Key className="h-4 w-4 mr-2" />
@@ -185,6 +190,10 @@ export default function Settings() {
 
           <TabsContent value="midi" className="space-y-4 mt-6">
             <MIDIMappingPanel />
+          </TabsContent>
+
+          <TabsContent value="shortcuts" className="space-y-4 mt-6">
+            <KeyboardShortcutsPanel />
           </TabsContent>
 
           <TabsContent value="database" className="space-y-4 mt-6">
