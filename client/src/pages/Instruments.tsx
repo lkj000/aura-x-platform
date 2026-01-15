@@ -12,6 +12,8 @@ import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lig
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
 import { AudioEngine } from '@/services/AudioEngine';
+import { amapianoPresets, getPresetsByCategory, type AmapianoPreset } from '@/data/amapianoPresets';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type GenerationMode = 'creative' | 'production';
 
@@ -394,6 +396,99 @@ export default function Instruments() {
                 </p>
               </div>
 
+              {/* Preset Library */}
+              <div className="space-y-3">
+                <Label>Amapiano Presets</Label>
+                <Tabs defaultValue="all" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="production">Production</TabsTrigger>
+                    <TabsTrigger value="creative">Creative</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="all" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
+                    {amapianoPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50"
+                        onClick={() => {
+                          setParams({
+                            ...params,
+                            ...preset.parameters,
+                            prompt: preset.prompt,
+                            mode: preset.style,
+                          });
+                        }}
+                        disabled={isGenerating}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-2xl">{preset.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{preset.name}</div>
+                            <div className="text-xs text-muted-foreground line-clamp-2">
+                              {preset.description}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </TabsContent>
+                  <TabsContent value="production" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
+                    {getPresetsByCategory('production').map((preset) => (
+                      <button
+                        key={preset.id}
+                        className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50"
+                        onClick={() => {
+                          setParams({
+                            ...params,
+                            ...preset.parameters,
+                            prompt: preset.prompt,
+                            mode: preset.style,
+                          });
+                        }}
+                        disabled={isGenerating}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-2xl">{preset.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{preset.name}</div>
+                            <div className="text-xs text-muted-foreground line-clamp-2">
+                              {preset.description}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </TabsContent>
+                  <TabsContent value="creative" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
+                    {getPresetsByCategory('creative').map((preset) => (
+                      <button
+                        key={preset.id}
+                        className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50"
+                        onClick={() => {
+                          setParams({
+                            ...params,
+                            ...preset.parameters,
+                            prompt: preset.prompt,
+                            mode: preset.style,
+                          });
+                        }}
+                        disabled={isGenerating}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-2xl">{preset.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{preset.name}</div>
+                            <div className="text-xs text-muted-foreground line-clamp-2">
+                              {preset.description}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </TabsContent>
+                </Tabs>
+              </div>
+
               {/* Prompt */}
               <div className="space-y-2">
                 <Label htmlFor="prompt">Prompt</Label>
@@ -565,15 +660,40 @@ export default function Instruments() {
               </Button>
 
               {isGenerating && (
-                <div className="space-y-2">
-                  <Progress value={generationProgress} />
-                  <p className="text-sm text-muted-foreground text-center">
-                    {generationProgress < 10
-                      ? 'Initializing AI model...'
-                      : generationProgress < 50
-                      ? 'Generating audio...'
-                      : 'Finalizing track...'}
-                  </p>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {generationProgress < 10
+                          ? 'Initializing AI model...'
+                          : generationProgress < 30
+                          ? 'Loading MusicGen weights...'
+                          : generationProgress < 60
+                          ? 'Generating audio with AI...'
+                          : generationProgress < 90
+                          ? 'Applying cultural authenticity...'
+                          : 'Finalizing track...'}
+                      </span>
+                      <span className="font-medium">{Math.round(generationProgress)}%</span>
+                    </div>
+                    <Progress value={generationProgress} className="h-2" />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>
+                        {generationProgress < 90
+                          ? `Estimated time: ${Math.ceil((100 - generationProgress) * 0.5)}s`
+                          : 'Almost done...'}
+                      </span>
+                    </div>
+                    {autonomousMode && (
+                      <span className="text-purple-400 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Autonomous Mode
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>

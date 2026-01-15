@@ -13,9 +13,14 @@ import {
   CheckCircle,
   Info,
   Loader2,
-  Upload
+  Upload,
+  Mic,
+  Drum,
+  Guitar,
+  Waves
 } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
+import { StemWaveform } from '@/components/StemWaveform';
 
 interface QualityScore {
   overall_score: number;
@@ -33,6 +38,13 @@ export default function Analysis() {
   const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [qualityScore, setQualityScore] = useState<QualityScore | null>(null);
+  const [stems, setStems] = useState<{
+    vocals: string;
+    drums: string;
+    bass: string;
+    other: string;
+  } | null>(null);
+  const [isSeparatingStems, setIsSeparatingStems] = useState(false);
 
   const mediaLibraryQuery = trpc.mediaLibrary.list.useQuery({
     limit: 50,
@@ -320,6 +332,81 @@ export default function Analysis() {
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Stem Visualization */}
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Waves className="h-5 w-5" />
+                      Stem Separation & Visualization
+                    </CardTitle>
+                    <CardDescription>
+                      Separate and visualize individual stems for detailed analysis
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {!stems && !isSeparatingStems && (
+                      <Button
+                        onClick={() => {
+                          // TODO: Implement stem separation via Modal API
+                          setIsSeparatingStems(true);
+                          // Demo: Use placeholder stems
+                          setTimeout(() => {
+                            setStems({
+                              vocals: mediaLibraryQuery.data?.[0]?.fileUrl || '',
+                              drums: mediaLibraryQuery.data?.[0]?.fileUrl || '',
+                              bass: mediaLibraryQuery.data?.[0]?.fileUrl || '',
+                              other: mediaLibraryQuery.data?.[0]?.fileUrl || '',
+                            });
+                            setIsSeparatingStems(false);
+                          }, 2000);
+                        }}
+                        disabled={!mediaLibraryQuery.data?.length}
+                      >
+                        <Waves className="h-4 w-4 mr-2" />
+                        Separate Stems
+                      </Button>
+                    )}
+
+                    {isSeparatingStems && (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="text-center space-y-2">
+                          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                          <p className="text-sm text-muted-foreground">Separating stems with Demucs AI...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {stems && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <StemWaveform
+                          stemName="Vocals"
+                          stemUrl={stems.vocals}
+                          color="#8b5cf6"
+                          icon={<Mic className="h-4 w-4" />}
+                        />
+                        <StemWaveform
+                          stemName="Drums"
+                          stemUrl={stems.drums}
+                          color="#ef4444"
+                          icon={<Drum className="h-4 w-4" />}
+                        />
+                        <StemWaveform
+                          stemName="Bass"
+                          stemUrl={stems.bass}
+                          color="#3b82f6"
+                          icon={<Guitar className="h-4 w-4" />}
+                        />
+                        <StemWaveform
+                          stemName="Other"
+                          stemUrl={stems.other}
+                          color="#10b981"
+                          icon={<Music className="h-4 w-4" />}
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </>
             )}
           </div>
