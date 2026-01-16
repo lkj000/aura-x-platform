@@ -860,6 +860,7 @@ export const appRouter = router({
       .input(z.object({
         search: z.string().optional(),
         category: z.string().optional(),
+        sellerId: z.number().optional(),
         sortBy: z.enum(['popular', 'recent', 'price_low', 'price_high']).default('popular'),
         limit: z.number().default(50),
       }))
@@ -1188,6 +1189,75 @@ export const appRouter = router({
         });
 
         return { checkoutUrl: session.url };
+      }),
+  }),
+
+  // Social Features router
+  social: router({
+    // Get or create producer profile
+    getProfile: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getOrCreateProducerProfile(input.userId);
+      }),
+
+    // Update producer profile
+    updateProfile: protectedProcedure
+      .input(z.object({
+        displayName: z.string().optional(),
+        bio: z.string().optional(),
+        avatar: z.string().optional(),
+        coverImage: z.string().optional(),
+        location: z.string().optional(),
+        website: z.string().optional(),
+        twitter: z.string().optional(),
+        instagram: z.string().optional(),
+        soundcloud: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.updateProducerProfile(ctx.user.id, input);
+      }),
+
+    // Follow a user
+    followUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.followUser(ctx.user.id, input.userId);
+      }),
+
+    // Unfollow a user
+    unfollowUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return db.unfollowUser(ctx.user.id, input.userId);
+      }),
+
+    // Get follower count
+    getFollowerCount: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getFollowerCount(input.userId);
+      }),
+
+    // Get following count
+    getFollowingCount: publicProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getFollowingCount(input.userId);
+      }),
+
+    // Check if following
+    isFollowing: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.isFollowing(ctx.user.id, input.userId);
+      }),
+
+    // Get activity feed
+    getActivityFeed: protectedProcedure
+      .input(z.object({ limit: z.number().default(50) }))
+      .query(async ({ ctx, input }) => {
+        return db.getActivityFeed(ctx.user.id, input.limit);
       }),
   }),
 });

@@ -635,3 +635,43 @@
 - [ ] Add bundle creation UI in seller dashboard (future enhancement)
 - [ ] Add bundle listing to marketplace (future enhancement)
 - [ ] Create bundle detail page (future enhancement)
+
+## Phase 13: Bundle UI, Notifications & Social Features
+
+### Phase 13.1: Bundle Creation UI (Complete)
+- [x] Add "Create Bundle" tab to seller dashboard
+- [x] Build pack selector with multi-select checkboxes
+- [x] Add discount percentage slider (1-99%)
+- [x] Show real-time price calculation (original vs bundle price)
+- [x] Add bundle title and description fields
+- [x] Add savings display in price preview
+- [x] Connect to createBundle tRPC mutation
+- [x] Add sellerId filter to listPacks for fetching seller's own packs
+- [ ] Implement cover image upload for bundles (future enhancement)
+- [ ] Show created bundles list in seller dashboard (future enhancement)
+- [ ] Add edit/deactivate bundle functionality (future enhancement)
+
+### Phase 13.2: Email Notifications (Complete)
+- [x] Set up email service integration (using built-in notification API)
+- [x] Create purchase receipt notification
+- [x] Send automated notification with download info after purchase
+- [x] Create seller notification template
+- [x] Send notification to seller when their pack is purchased
+- [x] Integrate notifications into Stripe webhook
+- [ ] Add weekly analytics summary email for sellers (future enhancement)
+- [ ] Create email preferences page for users (future enhancement)
+
+### Phase 13.3: Social Features (Complete)
+- [x] Create producer_profiles table with bio, avatar, social links
+- [x] Create followers table (follower_id, following_id)
+- [x] Create activity_feed table (user_id, action_type, target_id, timestamp)
+- [x] Add social features database functions (follow, unfollow, activity feed)
+- [x] Create social features tRPC router
+- [x] Implement follower/following count queries
+- [x] Add isFollowing check functionality
+- [ ] Build producer profile page (/producer/:id) - frontend (future enhancement)
+- [ ] Add follow/unfollow button UI (future enhancement)
+- [ ] Create activity feed component UI (future enhancement)
+- [ ] Add pack collections/playlists feature (future enhancement)
+- [ ] Build discover page with trending producers (future enhancement)
+- [ ] Add social sharing for packs (Twitter, Facebook) (future enhancement)

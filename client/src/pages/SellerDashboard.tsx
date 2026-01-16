@@ -29,12 +29,38 @@ export default function SellerDashboard() {
   const { user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
+  const [selectedPacks, setSelectedPacks] = useState<number[]>([]);
+  const [bundleDiscount, setBundleDiscount] = useState(20);
+  const [bundleFormData, setBundleFormData] = useState({
+    title: '',
+    description: '',
+    coverImage: '',
+  });
 
   // Fetch seller analytics
   const { data: analytics } = trpc.marketplace.getSellerAnalytics.useQuery(
     undefined,
     { enabled: !!user }
   );
+
+  // Fetch seller's packs for bundle creation
+  const { data: sellerPacks } = trpc.marketplace.listPacks.useQuery(
+    { sellerId: user?.id, limit: 100 },
+    { enabled: !!user }
+  );
+
+  // Bundle creation mutation
+  const createBundleMutation = trpc.bundles.createBundle.useMutation({
+    onSuccess: () => {
+      toast.success('Bundle created successfully!');
+      setBundleFormData({ title: '', description: '', coverImage: '' });
+      setSelectedPacks([]);
+      setBundleDiscount(20);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to create bundle');
+    },
+  });
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -247,8 +273,9 @@ export default function SellerDashboard() {
 
         {/* Tabs for Upload and Analytics */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="upload">Upload Pack</TabsTrigger>
+            <TabsTrigger value="bundles">Create Bundle</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
@@ -462,6 +489,157 @@ export default function SellerDashboard() {
             </Button>
           </CardFooter>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="bundles" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create Sample Pack Bundle</CardTitle>
+                <CardDescription>Combine multiple packs into a discounted bundle deal</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Bundle Title */}
+                <div className="space-y-2">
+                  <Label htmlFor="bundleTitle">Bundle Title</Label>
+                  <Input
+                    id="bundleTitle"
+                    placeholder="e.g., Complete Amapiano Starter Kit"
+                    value={bundleFormData.title}
+                    onChange={(e) => setBundleFormData({ ...bundleFormData, title: e.target.value })}
+                  />
+                </div>
+
+                {/* Bundle Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="bundleDescription">Description</Label>
+                  <Textarea
+                    id="bundleDescription"
+                    placeholder="Describe what's included in this bundle..."
+                    value={bundleFormData.description}
+                    onChange={(e) => setBundleFormData({ ...bundleFormData, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+
+                {/* Pack Selector */}
+                <div className="space-y-2">
+                  <Label>Select Packs (minimum 2)</Label>
+                  <div className="border rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                    {sellerPacks && sellerPacks.length > 0 ? (
+                      sellerPacks.map((pack: any) => (
+                        <label
+                          key={pack.id}
+                          className="flex items-center gap-3 p-3 hover:bg-accent rounded-lg cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPacks.includes(pack.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPacks([...selectedPacks, pack.id]);
+                              } else {
+                                setSelectedPacks(selectedPacks.filter(id => id !== pack.id));
+                              }
+                            }}
+                            className="w-4 h-4"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">{pack.title}</div>
+                            <div className="text-sm text-muted-foreground">
+                              ${Number(pack.price).toFixed(2)} • {pack.sampleCount} samples
+                            </div>
+                          </div>
+                        </label>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No packs available. Upload packs first to create bundles.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Discount Slider */}
+                <div className="space-y-2">
+                  <Label>Discount Percentage: {bundleDiscount}%</Label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="99"
+                    value={bundleDiscount}
+                    onChange={(e) => setBundleDiscount(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>1%</span>
+                    <span>99%</span>
+                  </div>
+                </div>
+
+                {/* Price Preview */}
+                {selectedPacks.length >= 2 && (
+                  <div className="bg-accent/50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Original Price:</span>
+                      <span className="font-medium line-through">
+                        ${sellerPacks
+                          ?.filter((p: any) => selectedPacks.includes(p.id))
+                          .reduce((sum: number, p: any) => sum + Number(p.price), 0)
+                          .toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Bundle Price:</span>
+                      <span className="text-2xl font-bold text-primary">
+                        ${(
+                          (sellerPacks || [])
+                            .filter((p: any) => selectedPacks.includes(p.id))
+                            .reduce((sum: number, p: any) => sum + Number(p.price), 0) *
+                          (1 - bundleDiscount / 100)
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-green-600">
+                      <span className="text-sm">You Save:</span>
+                      <span className="font-semibold">
+                        ${(
+                          (sellerPacks || [])
+                            .filter((p: any) => selectedPacks.includes(p.id))
+                            .reduce((sum: number, p: any) => sum + Number(p.price), 0) *
+                          (bundleDiscount / 100)
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  onClick={async () => {
+                    if (!bundleFormData.title) {
+                      toast.error('Please enter a bundle title');
+                      return;
+                    }
+                    if (selectedPacks.length < 2) {
+                      toast.error('Please select at least 2 packs');
+                      return;
+                    }
+
+                    createBundleMutation.mutate({
+                      title: bundleFormData.title,
+                      description: bundleFormData.description,
+                      packIds: selectedPacks,
+                      discountPercent: bundleDiscount,
+                    });
+                  }}
+                  disabled={!bundleFormData.title || selectedPacks.length < 2}
+                  className="w-full"
+                >
+                  <Package className="w-4 h-4 mr-2" />
+                  Create Bundle
+                </Button>
+              </CardFooter>
+            </Card>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">

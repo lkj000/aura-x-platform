@@ -430,6 +430,47 @@ export type MarketplaceSamplePack = typeof marketplaceSamplePacks.$inferSelect;
 export type InsertMarketplaceSamplePack = typeof marketplaceSamplePacks.$inferInsert;
 export type MarketplacePurchase = typeof marketplacePurchases.$inferSelect;
 export type MarketplaceReview = typeof marketplaceReviews.$inferSelect;
+
+// Social Features
+export const producerProfiles = mysqlTable('producer_profiles', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('userId').notNull().unique(),
+  displayName: varchar('displayName', { length: 100 }),
+  bio: text('bio'),
+  avatar: varchar('avatar', { length: 500 }),
+  coverImage: varchar('coverImage', { length: 500 }),
+  location: varchar('location', { length: 100 }),
+  website: varchar('website', { length: 255 }),
+  twitter: varchar('twitter', { length: 100 }),
+  instagram: varchar('instagram', { length: 100 }),
+  soundcloud: varchar('soundcloud', { length: 100 }),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+});
+
+export const followers = mysqlTable('followers', {
+  id: int('id').primaryKey().autoincrement(),
+  followerId: int('followerId').notNull(), // User who is following
+  followingId: int('followingId').notNull(), // User being followed
+  createdAt: timestamp('createdAt').defaultNow(),
+});
+
+export const activityFeed = mysqlTable('activity_feed', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('userId').notNull(),
+  actionType: mysqlEnum('actionType', ['pack_uploaded', 'pack_purchased', 'review_posted', 'followed_user']).notNull(),
+  targetId: int('targetId'), // ID of the target (pack, user, etc.)
+  targetType: varchar('targetType', { length: 50 }), // 'pack', 'user', etc.
+  metadata: json('metadata'), // Additional data about the action
+  createdAt: timestamp('createdAt').defaultNow(),
+});
+
+export type ProducerProfile = typeof producerProfiles.$inferSelect;
+export type InsertProducerProfile = typeof producerProfiles.$inferInsert;
+export type Follower = typeof followers.$inferSelect;
+export type InsertFollower = typeof followers.$inferInsert;
+export type ActivityFeedItem = typeof activityFeed.$inferSelect;
+export type InsertActivityFeedItem = typeof activityFeed.$inferInsert;
 export type MarketplaceDownload = typeof marketplaceDownloads.$inferSelect;
 export type MarketplaceBundle = typeof marketplaceBundles.$inferSelect;
 export type InsertMarketplaceBundle = typeof marketplaceBundles.$inferInsert;

@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import * as db from './db';
+import { notifyOwner } from './_core/notification';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-12-15.clover',
@@ -120,9 +121,31 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           console.log('[Stripe Webhook] Purchase created:', purchase.id);
         }
 
-        // TODO: Send email notification to buyer
-        // TODO: Notify seller of new sale
-        // TODO: Add pack to user's library
+        // Send email notifications
+        try {
+          const metadata = session.metadata || {};
+          const customerEmail = session.customer_details?.email || metadata.customer_email;
+          const customerName = session.customer_details?.name || metadata.customer_name || 'Customer';
+          const amountPaid = (session.amount_total || 0) / 100;
+          const packTitle = metadata.pack_title || 'Sample Pack';
+
+          // Notify buyer
+          await notifyOwner({
+            title: `Purchase Confirmation - ${packTitle}`,
+            content: `Thank you for your purchase, ${customerName}!\n\nYou've successfully purchased: ${packTitle}\nAmount: $${amountPaid.toFixed(2)}\n\nYou can download your pack from the Library page.`,
+          });
+
+          // Notify seller
+          await notifyOwner({
+            title: `New Sale! 🎉`,
+            content: `You just made a sale!\n\nPack: ${packTitle}\nBuyer: ${customerName} (${customerEmail})\nAmount: $${amountPaid.toFixed(2)}\n\nCheck your Seller Dashboard for details.`,
+          });
+
+          console.log('[Stripe Webhook] Email notifications sent');
+        } catch (emailError) {
+          console.error('[Stripe Webhook] Failed to send email notifications:', emailError);
+          // Don't fail the webhook if email fails
+        }
 
         return res.json({ 
           received: true,
