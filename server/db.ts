@@ -5,7 +5,8 @@ import {
   audioClips, midiNotes, samples, presetFavorites, customPresets,
   projectCollaborators, projectActivityLog, projectInvitations,
   automationLanes, automationPoints,
-  marketplaceSamplePacks, marketplacePurchases, marketplaceReviews,
+  marketplaceSamplePacks, marketplacePurchases, marketplaceReviews, marketplaceDownloads,
+  marketplaceBundles, marketplaceBundlePacks,
   type Project, type Track, type Generation, type InsertProject, type InsertTrack, type InsertGeneration, 
   type GenerationHistory, type InsertGenerationHistory, type AudioClip, type InsertAudioClip,
   type MidiNote, type InsertMidiNote, type Sample, type MediaLibraryItem, type InsertMediaLibraryItem,
@@ -901,9 +902,23 @@ export async function getUserMarketplacePurchases(userId: number): Promise<any[]
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(marketplacePurchases)
+  const purchases = await db.select().from(marketplacePurchases)
     .where(eq(marketplacePurchases.userId, userId))
     .orderBy(desc(marketplacePurchases.purchasedAt));
+
+  // Enrich with pack details and download count
+  const enriched = await Promise.all(purchases.map(async (purchase) => {
+    const pack = await getMarketplacePack(purchase.packId);
+    const downloads = await getMarketplaceDownloadsByPurchase(purchase.id);
+    return {
+      ...purchase,
+      pack,
+      downloadCount: downloads.length,
+      downloads,
+    };
+  }));
+
+  return enriched;
 }
 
 // ========================================
@@ -943,4 +958,241 @@ export async function getMarketplaceReviews(packId: number): Promise<any[]> {
   return db.select().from(marketplaceReviews)
     .where(eq(marketplaceReviews.packId, packId))
     .orderBy(desc(marketplaceReviews.createdAt));
+}
+
+export async function createMarketplaceDownload(data: {
+  userId: number;
+  packId: number;
+  purchaseId: number;
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [download] = await db.insert(marketplaceDownloads).values(data).$returningId();
+  return download;
+}
+
+export async function getMarketplaceDownloadsByPurchase(purchaseId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(marketplaceDownloads).where(eq(marketplaceDownloads.purchaseId, purchaseId));
+}
+
+export async function getSellerAnalytics(sellerId: number): Promise<any> {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Get all packs by seller
+  const packs = await db.select().from(marketplaceSamplePacks)
+    .where(eq(marketplaceSamplePacks.sellerId, sellerId));
+
+  // Get all purchases for seller's packs
+  const packIds = packs.map(p => p.id);
+  const purchases = packIds.length > 0
+    ? await db.select().from(marketplacePurchases)
+        .where(sql`${marketplacePurchases.packId} IN (${sql.join(packIds.map(id => sql`${id}`), sql`, `)})`)
+    : [];
+
+  // Get all reviews for seller's packs
+  const reviews = packIds.length > 0
+    ? await db.select().from(marketplaceReviews)
+        .where(sql`${marketplaceReviews.packId} IN (${sql.join(packIds.map(id => sql`${id}`), sql`, `)})`)
+    : [];
+
+  // Get all downloads for seller's packs
+  const downloads = packIds.length > 0
+    ? await db.select().from(marketplaceDownloads)
+        .where(sql`${marketplaceDownloads.packId} IN (${sql.join(packIds.map(id => sql`${id}`), sql`, `)})`)
+    : [];
+
+  // Calculate metrics
+  const totalRevenue = purchases.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalSales = purchases.length;
+  const activePacks = packs.length;
+  const totalDownloads = downloads.length;
+  const totalReviews = reviews.length;
+  const averageRating = reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : 0;
+
+  // Find top-selling pack
+  const packSales = new Map<number, number>();
+  purchases.forEach(p => {
+    packSales.set(p.packId, (packSales.get(p.packId) || 0) + 1);
+  });
+  const topPackId = packSales.size > 0
+    ? Array.from(packSales.entries()).sort((a, b) => b[1] - a[1])[0][0]
+    : null;
+  const topPack = topPackId ? packs.find(p => p.id === topPackId) : null;
+
+  // Sales by day (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const recentPurchases = purchases.filter(p => 
+    new Date(p.purchasedAt!) >= thirtyDaysAgo
+  );
+
+  const salesByDay = new Map<string, { date: string; sales: number; revenue: number }>();
+  recentPurchases.forEach(p => {
+    const date = new Date(p.purchasedAt!).toISOString().split('T')[0];
+    const existing = salesByDay.get(date) || { date, sales: 0, revenue: 0 };
+    existing.sales += 1;
+    existing.revenue += Number(p.amount || 0);
+    salesByDay.set(date, existing);
+  });
+
+  const revenueChart = Array.from(salesByDay.values()).sort((a, b) => 
+    a.date.localeCompare(b.date)
+  );
+
+  // Pack performance
+  const packPerformance = packs.map(pack => {
+    const packPurchases = purchases.filter(p => p.packId === pack.id);
+    const packReviews = reviews.filter(r => r.packId === pack.id);
+    const packDownloads = downloads.filter(d => d.packId === pack.id);
+    
+    return {
+      id: pack.id,
+      title: pack.title,
+      sales: packPurchases.length,
+      revenue: packPurchases.reduce((sum, p) => sum + Number(p.amount || 0), 0),
+      downloads: packDownloads.length,
+      rating: packReviews.length > 0
+        ? packReviews.reduce((sum, r) => sum + r.rating, 0) / packReviews.length
+        : 0,
+      reviewCount: packReviews.length,
+    };
+  }).sort((a, b) => b.sales - a.sales);
+
+  return {
+    totalRevenue,
+    totalSales,
+    activePacks,
+    totalDownloads,
+    totalReviews,
+    averageRating,
+    topPack: topPack ? {
+      id: topPack.id,
+      title: topPack.title,
+      sales: packSales.get(topPack.id) || 0,
+    } : null,
+    revenueChart,
+    packPerformance,
+  };
+}
+
+// ========================================
+// Marketplace Bundles
+// ========================================
+
+export async function createMarketplaceBundle(bundle: {
+  sellerId: number;
+  title: string;
+  description?: string;
+  originalPrice: number;
+  bundlePrice: number;
+  discountPercent: number;
+  coverImage?: string;
+  packIds: number[];
+}): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const { packIds, ...bundleData } = bundle;
+
+  // Create bundle
+  const [insertedBundle] = await db.insert(marketplaceBundles).values(bundleData).$returningId();
+  const bundleId = insertedBundle.id;
+
+  // Add packs to bundle
+  if (packIds.length > 0) {
+    await db.insert(marketplaceBundlePacks).values(
+      packIds.map(packId => ({ bundleId, packId }))
+    );
+  }
+
+  return { id: bundleId, ...bundleData };
+}
+
+export async function getMarketplaceBundle(bundleId: number): Promise<any> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [bundle] = await db.select().from(marketplaceBundles)
+    .where(eq(marketplaceBundles.id, bundleId))
+    .limit(1);
+
+  if (!bundle) return null;
+
+  // Get packs in bundle
+  const bundlePacks = await db.select().from(marketplaceBundlePacks)
+    .where(eq(marketplaceBundlePacks.bundleId, bundleId));
+
+  const packIds = bundlePacks.map(bp => bp.packId);
+  const packs = packIds.length > 0
+    ? await db.select().from(marketplaceSamplePacks)
+        .where(sql`${marketplaceSamplePacks.id} IN (${sql.join(packIds.map(id => sql`${id}`), sql`, `)})`)
+    : [];
+
+  return {
+    ...bundle,
+    packs,
+  };
+}
+
+export async function listMarketplaceBundles(filters: {
+  sellerId?: number;
+  isActive?: boolean;
+  limit?: number;
+}): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  let query = db.select().from(marketplaceBundles);
+
+  if (filters.sellerId !== undefined) {
+    query = query.where(eq(marketplaceBundles.sellerId, filters.sellerId)) as any;
+  }
+
+  if (filters.isActive !== undefined) {
+    query = query.where(eq(marketplaceBundles.isActive, filters.isActive)) as any;
+  }
+
+  if (filters.limit) {
+    query = query.limit(filters.limit) as any;
+  }
+
+  const bundles = await query;
+
+  // Enrich with pack count
+  const enriched = await Promise.all(bundles.map(async (bundle) => {
+    const bundlePacks = await db.select().from(marketplaceBundlePacks)
+      .where(eq(marketplaceBundlePacks.bundleId, bundle.id));
+    
+    return {
+      ...bundle,
+      packCount: bundlePacks.length,
+    };
+  }));
+
+  return enriched;
+}
+
+export async function updateMarketplaceBundle(bundleId: number, updates: {
+  title?: string;
+  description?: string;
+  bundlePrice?: number;
+  discountPercent?: number;
+  isActive?: boolean;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(marketplaceBundles)
+    .set(updates)
+    .where(eq(marketplaceBundles.id, bundleId));
 }

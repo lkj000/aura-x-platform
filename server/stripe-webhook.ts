@@ -59,31 +59,66 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         // Extract metadata
         const userId = session.metadata?.user_id;
         const packId = session.metadata?.pack_id;
+        const bundleId = session.metadata?.bundle_id;
+        const type = session.metadata?.type; // 'bundle' or undefined (single pack)
         const paymentIntentId = session.payment_intent as string;
 
-        if (!userId || !packId) {
-          console.error('[Stripe Webhook] Missing metadata:', { userId, packId });
+        if (!userId) {
+          console.error('[Stripe Webhook] Missing userId:', { userId });
           return res.status(400).json({ 
             error: 'Missing required metadata',
-            received: { userId, packId }
+            received: { userId }
           });
         }
 
-        // Get pack details to verify amount
-        const pack = await db.getMarketplacePack(Number(packId));
-        if (!pack) {
-          console.error('[Stripe Webhook] Pack not found:', packId);
-          return res.status(404).json({ error: 'Pack not found' });
+        let purchaseIds: number[] = [];
+
+        if (type === 'bundle' && bundleId) {
+          // Bundle purchase - create purchase records for all packs in bundle
+          console.log('[Stripe Webhook] Processing bundle purchase:', bundleId);
+          const bundle = await db.getMarketplaceBundle(Number(bundleId));
+          
+          if (!bundle || !bundle.packs) {
+            console.error('[Stripe Webhook] Bundle not found:', bundleId);
+            return res.status(404).json({ error: 'Bundle not found' });
+          }
+
+          // Create purchase record for each pack in bundle
+          for (const pack of bundle.packs) {
+            const purchase = await db.createMarketplacePurchase({
+              userId: Number(userId),
+              packId: pack.id,
+              paymentIntentId: paymentIntentId,
+            });
+            purchaseIds.push(purchase.id);
+          }
+
+          console.log('[Stripe Webhook] Bundle purchases created:', purchaseIds);
+        } else {
+          // Single pack purchase
+          if (!packId) {
+            console.error('[Stripe Webhook] Missing packId for single purchase');
+            return res.status(400).json({ 
+              error: 'Missing required metadata',
+              received: { userId, packId }
+            });
+          }
+
+          const pack = await db.getMarketplacePack(Number(packId));
+          if (!pack) {
+            console.error('[Stripe Webhook] Pack not found:', packId);
+            return res.status(404).json({ error: 'Pack not found' });
+          }
+
+          const purchase = await db.createMarketplacePurchase({
+            userId: Number(userId),
+            packId: Number(packId),
+            paymentIntentId: paymentIntentId,
+          });
+
+          purchaseIds.push(purchase.id);
+          console.log('[Stripe Webhook] Purchase created:', purchase.id);
         }
-
-        // Create purchase record
-        const purchase = await db.createMarketplacePurchase({
-          userId: Number(userId),
-          packId: Number(packId),
-          paymentIntentId: paymentIntentId,
-        });
-
-        console.log('[Stripe Webhook] Purchase created:', purchase.id);
 
         // TODO: Send email notification to buyer
         // TODO: Notify seller of new sale
@@ -91,7 +126,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
         return res.json({ 
           received: true,
-          purchaseId: purchase.id,
+          purchaseIds,
         });
       }
 

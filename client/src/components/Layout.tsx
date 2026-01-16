@@ -11,7 +11,8 @@ import {
   Bell,
   User,
   History,
-  ShoppingBag
+  ShoppingBag,
+  Library as LibraryIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ export default function Layout({ children }: LayoutProps) {
     { icon: Activity, label: 'Analysis', path: '/analysis' },
     { icon: History, label: 'History', path: '/history' },
     { icon: ShoppingBag, label: 'Marketplace', path: '/marketplace' },
+    { icon: LibraryIcon, label: 'Library', path: '/library' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

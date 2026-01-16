@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Upload, Package, DollarSign, TrendingUp, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/_core/hooks/useAuth';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const CATEGORIES = [
   { value: 'log_drums', label: 'Log Drums' },
@@ -23,7 +26,15 @@ const CATEGORIES = [
 ];
 
 export default function SellerDashboard() {
+  const { user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState('upload');
+
+  // Fetch seller analytics
+  const { data: analytics } = trpc.marketplace.getSellerAnalytics.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -174,15 +185,19 @@ export default function SellerDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$0.00</div>
-              <p className="text-xs text-muted-foreground">No sales yet</p>
+              <div className="text-2xl font-bold">
+                ${analytics?.totalRevenue?.toFixed(2) || '0.00'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {analytics?.totalSales || 0} sales
+              </p>
             </CardContent>
           </Card>
 
@@ -192,25 +207,54 @@ export default function SellerDashboard() {
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Upload your first pack</p>
+              <div className="text-2xl font-bold">{analytics?.activePacks || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                {analytics?.totalDownloads || 0} downloads
+              </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Downloads</CardTitle>
+              <CardTitle className="text-sm font-medium">Avg Rating</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Start selling to grow</p>
+              <div className="text-2xl font-bold">
+                {analytics?.averageRating?.toFixed(1) || 'N/A'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {analytics?.totalReviews || 0} reviews
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Top Pack</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm font-bold truncate">
+                {analytics?.topPack?.title || 'None yet'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {analytics?.topPack?.sales || 0} sales
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Upload Form */}
-        <Card>
+        {/* Tabs for Upload and Analytics */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">Upload Pack</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upload">
+            {/* Upload Form */}
+            <Card>
           <CardHeader>
             <CardTitle>Upload New Sample Pack</CardTitle>
             <CardDescription>
@@ -418,6 +462,65 @@ export default function SellerDashboard() {
             </Button>
           </CardFooter>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            {/* Revenue Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Trend (Last 30 Days)</CardTitle>
+                <CardDescription>Daily sales and revenue performance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {analytics?.revenueChart && analytics.revenueChart.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={analytics.revenueChart}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis yAxisId="left" />
+                      <YAxis yAxisId="right" orientation="right" />
+                      <Tooltip />
+                      <Legend />
+                      <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#8884d8" name="Revenue ($)" />
+                      <Line yAxisId="right" type="monotone" dataKey="sales" stroke="#82ca9d" name="Sales" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-16 text-muted-foreground">
+                    No sales data yet. Start selling to see your revenue trend!
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Pack Performance */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Pack Performance</CardTitle>
+                <CardDescription>Sales and ratings for each pack</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {analytics?.packPerformance && analytics.packPerformance.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={analytics.packPerformance}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="title" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="sales" fill="#8884d8" name="Sales" />
+                      <Bar dataKey="downloads" fill="#82ca9d" name="Downloads" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-16 text-muted-foreground">
+                    No pack data yet. Upload your first pack to see performance metrics!
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );

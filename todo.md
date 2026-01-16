@@ -599,3 +599,39 @@
 - [x] Test complete purchase flow end-to-end with Stripe
 - [x] Write comprehensive integration tests (34 tests passing)
 - [x] Verify all marketplace features working correctly
+
+## Phase 12: Download Management, Analytics & Bundles (Current)
+
+### Phase 12.1: Library & Download Management (Complete)
+- [x] Create /library page showing purchased packs
+- [x] Add download buttons with direct S3 URLs
+- [x] Implement download tracking in database (marketplace_downloads table)
+- [x] Add download count limit per purchase (5 downloads max)
+- [x] Show download history with timestamps
+- [x] Add Library nav item to sidebar
+- [x] Create tRPC createDownload procedure
+- [ ] Add email receipt system with download links (future enhancement)
+
+### Phase 12.2: Seller Analytics Dashboard (Complete)
+- [x] Expand seller dashboard with analytics section
+- [x] Add revenue chart (last 30 days with daily breakdown)
+- [x] Show top-selling packs with sales count
+- [x] Display total revenue and earnings
+- [x] Implement sales trends visualization
+- [x] Use Recharts for data visualization
+- [x] Add pack performance chart (sales vs downloads)
+- [x] Create comprehensive analytics metrics (revenue, rating, reviews)
+- [ ] Add customer demographics (new vs returning) - future enhancement
+
+### Phase 12.3: Pack Bundles (Complete)
+- [x] Create bundles table in database (marketplace_bundles)
+- [x] Implement bundle_packs junction table (marketplace_bundle_packs)
+- [x] Add bundle database functions (create, get, list, update)
+- [x] Create bundles tRPC router with all procedures
+- [x] Support multi-pack checkout sessions with Stripe
+- [x] Calculate bundle discount pricing automatically
+- [x] Update webhook to handle bundle purchases
+- [x] Create purchase records for all packs in bundle
+- [ ] Add bundle creation UI in seller dashboard (future enhancement)
+- [ ] Add bundle listing to marketplace (future enhancement)
+- [ ] Create bundle detail page (future enhancement)

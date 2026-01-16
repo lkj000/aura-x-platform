@@ -395,7 +395,42 @@ export const marketplaceReviews = mysqlTable('marketplace_reviews', {
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 });
 
+export const marketplaceDownloads = mysqlTable('marketplace_downloads', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('userId').notNull(),
+  packId: int('packId').notNull(),
+  purchaseId: int('purchaseId').notNull(),
+  downloadedAt: timestamp('downloadedAt').defaultNow(),
+  ipAddress: varchar('ipAddress', { length: 45 }),
+  userAgent: text('userAgent'),
+});
+
+export const marketplaceBundles = mysqlTable('marketplace_bundles', {
+  id: int('id').primaryKey().autoincrement(),
+  sellerId: int('sellerId').notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  originalPrice: decimal('originalPrice', { precision: 10, scale: 2 }).$type<number>().notNull(),
+  bundlePrice: decimal('bundlePrice', { precision: 10, scale: 2 }).$type<number>().notNull(),
+  discountPercent: int('discountPercent').notNull(),
+  coverImage: varchar('coverImage', { length: 500 }),
+  isActive: boolean('isActive').default(true).notNull(),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+});
+
+export const marketplaceBundlePacks = mysqlTable('marketplace_bundle_packs', {
+  id: int('id').primaryKey().autoincrement(),
+  bundleId: int('bundleId').notNull(),
+  packId: int('packId').notNull(),
+  createdAt: timestamp('createdAt').defaultNow(),
+});
+
 export type MarketplaceSamplePack = typeof marketplaceSamplePacks.$inferSelect;
 export type InsertMarketplaceSamplePack = typeof marketplaceSamplePacks.$inferInsert;
 export type MarketplacePurchase = typeof marketplacePurchases.$inferSelect;
 export type MarketplaceReview = typeof marketplaceReviews.$inferSelect;
+export type MarketplaceDownload = typeof marketplaceDownloads.$inferSelect;
+export type MarketplaceBundle = typeof marketplaceBundles.$inferSelect;
+export type InsertMarketplaceBundle = typeof marketplaceBundles.$inferInsert;
+export type MarketplaceBundlePack = typeof marketplaceBundlePacks.$inferSelect;
