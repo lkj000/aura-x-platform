@@ -979,8 +979,55 @@
 - [x] Make all scripts executable (chmod +x)
 - [x] Add error handling and clear messages
 
-### Phase 20.5: Testing & Final Checkpoint (Ready)
+### Phase 20.5: Testing & Final Checkpoint (Complete)
 - [x] Tier system implemented and ready for testing
 - [x] Navigation link added and functional
 - [x] Automation scripts created and documented
-- [ ] Save final checkpoint with all features
+- [x] Save final checkpoint with all features (version: 1b2bca42)
+
+## Phase 21: Temporal Deployment, Admin Tier Management & Stripe Upgrade Flow (Current)
+
+### Phase 21.1: Temporal Deployment Validation (Complete)
+- [x] Create deployment validation checklist (DEPLOYMENT_CHECKLIST.md)
+- [x] Document environment variable requirements
+- [x] Add troubleshooting guide for common issues
+- [x] Create quick-start deployment guide with health checks
+
+### Phase 21.2: Admin Tier Management UI (Complete)
+- [x] Create /admin/users page with user list
+- [x] Add tier badge display for each user with icons (Crown/Zap)
+- [x] Add tier change dropdown (free/pro/enterprise)
+- [x] Implement updateUserTier tRPC mutation in admin router
+- [x] Add admin-only route protection (role check)
+- [x] Add search and filter functionality (by name/email/tier)
+- [x] Display user stats (role, joined date, last sign in)
+- [x] Add tier statistics cards (free/pro/enterprise counts)
+- [x] Add refresh button for real-time updates
+- [x] Add admin navigation link to sidebar
+
+### Phase 21.3: Stripe Tier Upgrade Checkout (Complete)
+- [x] Define tier pricing in products.ts (Pro: $29/mo, Enterprise: $99/mo)
+- [x] Create tier upgrade tRPC endpoint (admin.createTierUpgradeCheckout)
+- [x] Implement Stripe checkout session creation with metadata
+- [x] Add upgrade button to Queue Dashboard (TierUpgradeDialog)
+- [x] Add tier comparison modal with feature lists
+- [x] Handle success/cancel redirects (/queue?upgrade=success/cancelled)
+- [x] Add promotion code support
+
+### Phase 21.4: Tier Upgrade Webhook Handler (Complete)
+- [x] Add checkout.session.completed handler for subscriptions
+- [x] Extract tier from session metadata
+- [x] Update user tier in database
+- [x] Update user_queue_stats maxConcurrentJobs based on tier
+- [x] Send upgrade confirmation notification with benefits
+- [x] Add error handling and logging
+- [x] Skip pack purchase logic for tier upgrades
+- [ ] Test webhook with Stripe CLI (requires Stripe setup)
+
+### Phase 21.5: Testing & Final Checkpoint (Ready)
+- [x] Admin tier management UI implemented
+- [x] Stripe checkout flow implemented
+- [x] Webhook tier update handler implemented
+- [x] Queue priority system tier-based
+- [ ] End-to-end testing requires Stripe setup
+- [ ] Save final checkpoint

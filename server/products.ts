@@ -47,3 +47,75 @@ export function validatePackPrice(price: number): { valid: boolean; error?: stri
   
   return { valid: true };
 }
+
+/**
+ * Tier Subscription Products
+ * Level 5 Autonomous Agent Architecture - Tier Pricing
+ */
+export const TIER_PRODUCTS = {
+  pro: {
+    name: 'AURA-X Pro',
+    description: 'Professional music production with enhanced AI generation capabilities',
+    priceId: process.env.STRIPE_PRICE_PRO || 'price_pro_monthly',
+    amount: 2900, // $29.00 USD
+    currency: 'usd',
+    interval: 'month',
+    features: [
+      '3 concurrent AI generations',
+      'Priority queue processing',
+      'Advanced cultural analysis',
+      'Stem separation included',
+      'Commercial license',
+      'Priority support',
+    ],
+  },
+  enterprise: {
+    name: 'AURA-X Enterprise',
+    description: 'Enterprise-grade music production with unlimited AI generation',
+    priceId: process.env.STRIPE_PRICE_ENTERPRISE || 'price_enterprise_monthly',
+    amount: 9900, // $99.00 USD
+    currency: 'usd',
+    interval: 'month',
+    features: [
+      '10 concurrent AI generations',
+      'Highest priority queue',
+      'Advanced cultural analysis',
+      'Unlimited stem separation',
+      'Commercial license',
+      'Dedicated support',
+      'API access',
+      'Custom model training',
+    ],
+  },
+} as const;
+
+export type TierProductKey = keyof typeof TIER_PRODUCTS;
+
+/**
+ * Get Stripe price ID for a tier
+ */
+export function getStripePriceId(tier: 'pro' | 'enterprise'): string {
+  return TIER_PRODUCTS[tier].priceId;
+}
+
+/**
+ * Get tier from Stripe price ID
+ */
+export function getTierFromPriceId(priceId: string): 'pro' | 'enterprise' | null {
+  for (const [tier, product] of Object.entries(TIER_PRODUCTS)) {
+    if (product.priceId === priceId) {
+      return tier as 'pro' | 'enterprise';
+    }
+  }
+  return null;
+}
+
+/**
+ * Format price for display
+ */
+export function formatPrice(amount: number, currency: string): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(amount / 100);
+}

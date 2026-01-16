@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Users, Clock, Activity, Crown, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/_core/hooks/useAuth';
+import TierUpgradeDialog from '@/components/TierUpgradeDialog';
 
 /**
  * Cancel Button Component
@@ -70,6 +71,7 @@ export default function QueueDashboard() {
           <p className="text-muted-foreground">Monitor AI generation queue and rate limiting</p>
         </div>
         <div className="flex items-center gap-2">
+          <TierUpgradeDialog currentTier={user?.tier || 'free'} />
           <Button
             variant="outline"
             size="sm"

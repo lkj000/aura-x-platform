@@ -14,7 +14,8 @@ import {
   ShoppingBag,
   Library as LibraryIcon,
   Sparkles,
-  ListOrdered
+  ListOrdered,
+  Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ export default function Layout({ children }: LayoutProps) {
     { icon: LibraryIcon, label: 'Library', path: '/library' },
     { icon: Sparkles, label: 'AI Studio', path: '/ai-studio' },
     { icon: ListOrdered, label: 'Queue', path: '/queue' },
+    { icon: Shield, label: 'Admin', path: '/admin/users' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

@@ -5,6 +5,12 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import * as modalClient from './modalClient';
+import { users, userQueueStats } from '../drizzle/schema';
+import { eq, desc } from 'drizzle-orm';
+import { getMaxConcurrentJobs } from '../shared/tierConfig';
+import type { UserTier } from '../shared/tierConfig';
+import { TRPCError } from '@trpc/server';
+import { getDb } from './db';
 import { executeMusicGenerationWorkflow, executeStemSeparationWorkflow, queryWorkflowStatus } from './temporalClient';
 import Stripe from 'stripe';
 import { invokeLLM } from './_core/llm';
@@ -1531,6 +1537,93 @@ export const appRouter = router({
           console.error('[aiStudio] Job status check failed:', error);
           throw error;
         }
+      }),
+  }),
+
+  // Admin router - Level 5 tier management
+  admin: router({
+    // Get all users (admin only)
+    getAllUsers: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
+      }
+      
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      
+      return db.select().from(users).orderBy(desc(users.createdAt));
+    }),
+    
+    // Update user tier (admin only)
+    updateUserTier: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        tier: z.enum(['free', 'pro', 'enterprise']),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
+        }
+        
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+        
+        // Update user tier
+        await db.update(users)
+          .set({ tier: input.tier })
+          .where(eq(users.id, input.userId));
+        
+        // Update user_queue_stats maxConcurrentJobs
+        const maxConcurrentJobs = getMaxConcurrentJobs(input.tier as UserTier);
+        await db.update(userQueueStats)
+          .set({ maxConcurrentJobs })
+          .where(eq(userQueueStats.userId, input.userId));
+        
+        return { success: true };
+      }),
+    
+    // Create Stripe checkout session for tier upgrade
+    createTierUpgradeCheckout: protectedProcedure
+      .input(z.object({
+        tier: z.enum(['pro', 'enterprise']),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { TIER_PRODUCTS, getStripePriceId } = await import('./products');
+        const Stripe = (await import('stripe')).default;
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+          apiVersion: '2025-12-15.clover' as any,
+        });
+        
+        const product = TIER_PRODUCTS[input.tier];
+        const origin = ctx.req.headers.origin || 'http://localhost:3000';
+        
+        // Create Stripe checkout session
+        const session = await stripe.checkout.sessions.create({
+          mode: 'subscription',
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price: getStripePriceId(input.tier),
+              quantity: 1,
+            },
+          ],
+          success_url: `${origin}/queue?upgrade=success`,
+          cancel_url: `${origin}/queue?upgrade=cancelled`,
+          customer_email: ctx.user.email || undefined,
+          client_reference_id: ctx.user.id.toString(),
+          metadata: {
+            userId: ctx.user.id.toString(),
+            tier: input.tier,
+            userEmail: ctx.user.email || '',
+            userName: ctx.user.name || '',
+          },
+          allow_promotion_codes: true,
+        });
+        
+        return {
+          checkoutUrl: session.url,
+          sessionId: session.id,
+        };
       }),
   }),
 

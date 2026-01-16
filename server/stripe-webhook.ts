@@ -2,6 +2,12 @@ import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import * as db from './db';
 import { notifyOwner } from './_core/notification';
+import { getTierFromPriceId } from './products';
+import { users, userQueueStats } from '../drizzle/schema';
+import { eq } from 'drizzle-orm';
+import { getMaxConcurrentJobs } from '../shared/tierConfig';
+import type { UserTier } from '../shared/tierConfig';
+import { getDb } from './db';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-12-15.clover',
@@ -61,15 +67,72 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const userId = session.metadata?.user_id;
         const packId = session.metadata?.pack_id;
         const bundleId = session.metadata?.bundle_id;
+        const tierUpgrade = session.metadata?.tier; // 'pro' or 'enterprise' for tier upgrades
         const type = session.metadata?.type; // 'bundle' or undefined (single pack)
         const paymentIntentId = session.payment_intent as string;
+        
+        // Handle tier upgrade subscriptions
+        if (tierUpgrade && session.mode === 'subscription') {
+          console.log('[Stripe Webhook] Processing tier upgrade:', tierUpgrade);
+          
+          if (!userId) {
+            console.error('[Stripe Webhook] Missing userId for tier upgrade');
+            return res.status(400).json({ error: 'Missing userId' });
+          }
+          
+          const database = await getDb();
+          if (!database) {
+            console.error('[Stripe Webhook] Database not available');
+            return res.status(500).json({ error: 'Database not available' });
+          }
+          
+          try {
+            // Update user tier
+            await database.update(users)
+              .set({ tier: tierUpgrade as 'pro' | 'enterprise' })
+              .where(eq(users.id, Number(userId)));
+            
+            // Update user_queue_stats maxConcurrentJobs
+            const maxConcurrentJobs = getMaxConcurrentJobs(tierUpgrade as UserTier);
+            await database.update(userQueueStats)
+              .set({ maxConcurrentJobs })
+              .where(eq(userQueueStats.userId, Number(userId)));
+            
+            console.log('[Stripe Webhook] User tier upgraded:', userId, tierUpgrade);
+            
+            // Send upgrade confirmation notification
+            const customerName = session.customer_details?.name || session.metadata?.userName || 'User';
+            await notifyOwner({
+              title: `Tier Upgrade Successful - ${tierUpgrade.toUpperCase()}`,
+              content: `Congratulations ${customerName}!\n\nYour AURA-X account has been upgraded to ${tierUpgrade.toUpperCase()} tier.\n\nNew benefits:\n- ${tierUpgrade === 'pro' ? '3' : '10'} concurrent AI generations\n- ${tierUpgrade === 'pro' ? 'Priority' : 'Highest priority'} queue processing\n- Advanced cultural analysis\n- ${tierUpgrade === 'enterprise' ? 'Unlimited' : 'Included'} stem separation\n\nYour new limits are now active!`,
+            });
+            
+            return res.json({ 
+              received: true,
+              tierUpgrade: tierUpgrade,
+              userId: userId,
+            });
+          } catch (error: any) {
+            console.error('[Stripe Webhook] Failed to update user tier:', error);
+            return res.status(500).json({ 
+              error: 'Failed to update tier',
+              message: error.message,
+            });
+          }
+        }
 
-        if (!userId) {
+        // Only require userId for pack/bundle purchases
+        if (!userId && !tierUpgrade) {
           console.error('[Stripe Webhook] Missing userId:', { userId });
           return res.status(400).json({ 
             error: 'Missing required metadata',
             received: { userId }
           });
+        }
+        
+        // Skip pack purchase logic if this was a tier upgrade
+        if (tierUpgrade) {
+          return res.json({ received: true });
         }
 
         let purchaseIds: number[] = [];
