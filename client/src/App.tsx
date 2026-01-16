@@ -11,6 +11,8 @@ import Instruments from "./pages/Instruments";
 import Analysis from "./pages/Analysis";
 import GenerationHistory from "./pages/GenerationHistory";
 import Marketplace from "./pages/Marketplace";
+import SellerDashboard from "./pages/SellerDashboard";
+import PackDetail from "./pages/PackDetail";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/analysis" component={Analysis} />
       <Route path="/history" component={GenerationHistory} />
       <Route path="/marketplace" component={Marketplace} />
+      <Route path="/marketplace/:id" component={PackDetail} />
+      <Route path="/seller/dashboard" component={SellerDashboard} />
       <Route path="/settings" component={Settings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

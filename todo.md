@@ -581,3 +581,21 @@
 - [x] Fix marketplace rating display error (pack.rating is string, needs Number() conversion)
 - [x] Fix marketplace price display error (pack.price is string, needs Number() conversion)
 - [x] Fix Stripe API version mismatch (updated to 2025-12-15.clover)
+
+## Phase 11.2: Stripe Webhook & Pack Upload (Current)
+- [x] Create /api/stripe/webhook endpoint with signature verification
+- [x] Handle checkout.session.completed event
+- [x] Create purchase record in database after successful payment
+- [x] Add test event detection and verification response
+- [x] Build seller dashboard page (/seller/dashboard)
+- [x] Implement file upload to S3 for sample pack ZIP files
+- [x] Create pack metadata form (title, description, category, price, tags)
+- [x] Add pack creation flow with S3 URL storage
+- [x] Create pack detail page (/marketplace/:id)
+- [x] Add audio preview player
+- [x] Display full pack information and details
+- [x] Show seller profile and reviews section
+- [x] Make marketplace cards clickable to navigate to detail page
+- [x] Test complete purchase flow end-to-end with Stripe
+- [x] Write comprehensive integration tests (34 tests passing)
+- [x] Verify all marketplace features working correctly

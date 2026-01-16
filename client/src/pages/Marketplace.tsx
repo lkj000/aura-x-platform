@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'wouter';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,7 @@ import { Search, ShoppingCart, Play, Star, TrendingUp, Clock } from 'lucide-reac
 import { trpc } from '@/lib/trpc';
 
 export default function Marketplace() {
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('popular');
@@ -107,7 +109,11 @@ export default function Marketplace() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {packs.map((pack) => (
-                <Card key={pack.id} className="flex flex-col">
+                <Card 
+                  key={pack.id} 
+                  className="flex flex-col cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => setLocation(`/marketplace/${pack.id}`)}
+                >
                   <CardHeader className="pb-3">
                     {pack.coverImage && (
                       <div className="w-full h-48 bg-muted rounded-md mb-3 overflow-hidden">
