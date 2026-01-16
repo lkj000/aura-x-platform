@@ -734,3 +734,43 @@
 - [ ] Create generation templates library
 - [ ] Add vocal characteristic controls (male/female, age, accent)
 - [ ] Implement real-time generation preview (first 30s)
+
+## Phase 15: Real Music Generation & Stem Separation (Current)
+
+### Phase 15.1: Modal Backend Infrastructure (Complete)
+- [x] Set up Modal app configuration and authentication
+- [x] Create base Modal functions for AI services (modal_app.py)
+- [x] Configure S3 integration for audio file storage
+- [x] Modal client already exists in server/modalClient.ts
+- [x] Environment variables already configured (MODAL_BASE_URL, MODAL_API_KEY)
+- [ ] Deploy Modal app and test connection (requires modal deploy)
+
+### Phase 15.2: MusicGen Music Generation (Complete)
+- [x] Implement MusicGen model loading in Modal (modal_app.py)
+- [x] Create music generation endpoint with prompt/lyrics input
+- [x] Implement audio file upload to S3 after generation
+- [x] Update aiStudio router to call Modal music generation
+- [x] Add checkJobStatus endpoint for polling
+- [x] Integrate with modalClient.generateMusic()
+- [ ] Add generation status polling in frontend (next step)
+- [ ] Test complete music generation workflow end-to-end (requires Modal deployment)
+
+### Phase 15.3: Demucs Stem Separation (Complete)
+- [x] Implement Demucs model loading in Modal (modal_app.py)
+- [x] Create stem separation endpoint for audio files
+- [x] Add 4-stem output (drums, bass, vocals, other)
+- [x] Upload separated stems to S3 with organized structure
+- [x] Add separateStems mutation to aiStudio router
+- [x] Update database with stems URLs after separation
+- [ ] Add "Separate Stems" button to generation cards UI (next step)
+- [ ] Test stem separation with generated music (requires Modal deployment)
+
+### Phase 15.4: Generation History Page
+- [ ] Create /ai-studio/history page with grid layout
+- [ ] Add audio player component with waveform visualization
+- [ ] Implement favorite filtering and search
+- [ ] Add "Import to DAW" button for each generation
+- [ ] Create DAW import functionality (add stems to timeline)
+- [ ] Show generation metadata (prompt, parameters, date)
+- [ ] Add delete and re-generate options
+- [ ] Test complete workflow: generate → separate → import to DAW

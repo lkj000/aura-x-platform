@@ -1276,6 +1276,7 @@ export const appRouter = router({
         key: z.string(),
         vocalStyle: z.string(),
         mode: z.enum(['simple', 'custom']),
+        duration: z.number().optional().default(30),
       }))
       .mutation(async ({ ctx, input }) => {
         // Create generation record
@@ -1294,9 +1295,37 @@ export const appRouter = router({
           status: 'pending',
         });
 
-        // TODO: Trigger async music generation workflow
-        // For now, return the generation ID
-        return { generationId: generation.id, status: 'pending' };
+        // Trigger Modal music generation
+        try {
+          const modalResult = await modalClient.generateMusic({
+            prompt: input.prompt,
+            tempo: input.bpm,
+            key: input.key,
+            mode: input.style,
+            duration: input.duration || 30,
+            temperature: 1.0,
+            topK: 250,
+            cfgScale: 3.0,
+          });
+
+          // Update generation with job ID
+          await db.updateGeneration(generation.id, {
+            status: modalResult.status,
+          });
+
+          return { 
+            generationId: generation.id, 
+            jobId: modalResult.jobId,
+            status: modalResult.status 
+          };
+        } catch (error) {
+          // Update generation with error
+          await db.updateGeneration(generation.id, {
+            status: 'failed',
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          });
+          throw error;
+        }
       }),
 
     // Generate lyrics using LLM
@@ -1372,6 +1401,65 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         // TODO: Add deleteGeneration function to db.ts
         return { success: true };
+      }),
+
+    // Separate stems from generated audio
+    separateStems: protectedProcedure
+      .input(z.object({ generationId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const generation = await db.getGenerationById(input.generationId);
+          
+          if (!generation || !generation.resultUrl) {
+            throw new Error('Generation not found or not completed');
+          }
+          
+          // Call Modal stem separation
+          const stemResult = await modalClient.separateStems({
+            audioUrl: generation.resultUrl,
+            stemTypes: ['drums', 'bass', 'vocals', 'other'],
+          });
+          
+          // Update generation with stems
+          if (stemResult.status === 'completed' && stemResult.stems) {
+            await db.updateGeneration(input.generationId, {
+              stemsUrl: JSON.stringify(stemResult.stems),
+            });
+          }
+          
+          return stemResult;
+        } catch (error) {
+          console.error('[aiStudio] Stem separation failed:', error);
+          throw error;
+        }
+      }),
+
+    // Check Modal job status and update generation
+    checkJobStatus: protectedProcedure
+      .input(z.object({ jobId: z.string(), generationId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        try {
+          const jobStatus = await modalClient.checkJobStatus(input.jobId);
+          
+          // Update generation with results
+          if (jobStatus.status === 'completed' && 'audioUrl' in jobStatus && jobStatus.audioUrl) {
+            await db.updateGeneration(input.generationId, {
+              status: 'completed',
+              resultUrl: jobStatus.audioUrl,
+              completedAt: new Date(),
+            });
+          } else if (jobStatus.status === 'failed') {
+            await db.updateGeneration(input.generationId, {
+              status: 'failed',
+              errorMessage: jobStatus.error || 'Generation failed',
+            });
+          }
+          
+          return jobStatus;
+        } catch (error) {
+          console.error('[aiStudio] Job status check failed:', error);
+          throw error;
+        }
       }),
   }),
 });
