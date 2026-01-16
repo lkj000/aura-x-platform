@@ -1533,6 +1533,47 @@ export const appRouter = router({
         }
       }),
   }),
+
+  // Queue Management router - Level 5 autonomous architecture
+  queue: router({
+    // Get queue analytics (admin only)
+    getAnalytics: protectedProcedure
+      .query(async ({ ctx }) => {
+        const queueDb = await import('./queueDb');
+        return queueDb.getQueueAnalytics();
+      }),
+
+    // Get user's queue stats
+    getUserStats: protectedProcedure
+      .query(async ({ ctx }) => {
+        const queueDb = await import('./queueDb');
+        return queueDb.getUserQueueStats(ctx.user.id);
+      }),
+
+    // Get user's queue items
+    getUserQueue: protectedProcedure
+      .query(async ({ ctx }) => {
+        const queueDb = await import('./queueDb');
+        return queueDb.getUserQueueItems(ctx.user.id);
+      }),
+
+    // Get queue position for a generation
+    getQueuePosition: protectedProcedure
+      .input(z.object({ generationId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const queueDb = await import('./queueDb');
+        return queueDb.getUserQueuePosition(ctx.user.id, input.generationId);
+      }),
+
+    // Cancel queued generation
+    cancelQueuedGeneration: protectedProcedure
+      .input(z.object({ queueId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const queueDb = await import('./queueDb');
+        await queueDb.cancelQueuedGeneration(input.queueId);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

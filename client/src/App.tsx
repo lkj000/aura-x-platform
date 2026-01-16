@@ -15,6 +15,7 @@ import SellerDashboard from "./pages/SellerDashboard";
 import PackDetail from './pages/PackDetail';
 import Library from './pages/Library';
 import AIStudio from './pages/AIStudio';
+import QueueDashboard from './pages/QueueDashboard';
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/seller/dashboard" component={SellerDashboard} />
       <Route path="/library" component={Library} />
       <Route path="/ai-studio" component={AIStudio} />
+      <Route path="/queue" component={QueueDashboard} />
       <Route path="/settings" component={Settings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

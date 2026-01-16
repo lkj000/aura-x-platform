@@ -70,9 +70,29 @@ export default function AIStudio() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
+  const [queuePosition, setQueuePosition] = useState<number | null>(null);
 
   const generateMusic = trpc.aiStudio.generateMusic.useMutation();
   const generateLyrics = trpc.aiStudio.generateLyrics.useMutation();
+  
+  // Fetch user queue stats
+  const { data: userStats } = trpc.queue.getUserStats.useQuery();
+  
+  // Poll queue position during generation
+  const { data: queuePos } = trpc.queue.getQueuePosition.useQuery(
+    { generationId: activeGenerationId! },
+    { 
+      enabled: !!activeGenerationId && isGenerating,
+      refetchInterval: 3000, // Poll every 3 seconds
+    }
+  );
+  
+  // Update queue position when data changes
+  useEffect(() => {
+    if (queuePos !== undefined) {
+      setQueuePosition(queuePos);
+    }
+  }, [queuePos]);
   const checkJobStatus = trpc.aiStudio.checkJobStatus.useQuery(
     { jobId: activeJobId!, generationId: activeGenerationId! },
     { 
@@ -249,6 +269,21 @@ export default function AIStudio() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Queue Position Indicator */}
+                {isGenerating && queuePosition !== null && queuePosition > 0 && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />
+                      <span className="text-sm font-medium text-yellow-800">
+                        Queue Position: #{queuePosition}
+                      </span>
+                    </div>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Your generation is queued. You have {userStats?.concurrentJobs || 0}/{userStats?.maxConcurrentJobs || 3} concurrent jobs running.
+                    </p>
+                  </div>
+                )}
 
                 {isGenerating && progress > 0 && (
                   <div className="space-y-2">
@@ -439,6 +474,21 @@ export default function AIStudio() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Queue Position Indicator */}
+                {isGenerating && queuePosition !== null && queuePosition > 0 && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />
+                      <span className="text-sm font-medium text-yellow-800">
+                        Queue Position: #{queuePosition}
+                      </span>
+                    </div>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Your generation is queued. You have {userStats?.concurrentJobs || 0}/{userStats?.maxConcurrentJobs || 3} concurrent jobs running.
+                    </p>
+                  </div>
+                )}
 
                 {isGenerating && progress > 0 && (
                   <div className="space-y-2">
