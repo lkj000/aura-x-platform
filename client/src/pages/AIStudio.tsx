@@ -126,9 +126,9 @@ export default function AIStudio() {
         mode,
       });
 
-      // Start polling for job status
-      if (result.jobId && result.generationId) {
-        setActiveJobId(result.jobId);
+      // Start polling for workflow status
+      if (result.workflowId && result.generationId) {
+        setActiveJobId(result.workflowId);
         setActiveGenerationId(result.generationId);
         setProgress(10);
         toast.success('Music generation started! Polling for completion...');

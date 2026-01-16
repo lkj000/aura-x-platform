@@ -4,7 +4,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
-import * as modalClient from "./modalClient";
+import * as modalClient from './modalClient';
+import { executeMusicGenerationWorkflow, executeStemSeparationWorkflow, queryWorkflowStatus } from './temporalClient';
 import Stripe from 'stripe';
 import { invokeLLM } from './_core/llm';
 
@@ -1295,28 +1296,28 @@ export const appRouter = router({
           status: 'pending',
         });
 
-        // Trigger Modal music generation
+        // Execute Temporal workflow for music generation (Level 5 autonomous architecture)
         try {
-          const modalResult = await modalClient.generateMusic({
+          const workflowHandle = await executeMusicGenerationWorkflow({
+            generationId: generation.id,
+            userId: ctx.user.id,
             prompt: input.prompt,
-            tempo: input.bpm,
-            key: input.key,
-            mode: input.style,
+            lyrics: input.lyrics,
             duration: input.duration || 30,
             temperature: 1.0,
-            topK: 250,
-            cfgScale: 3.0,
+            modalBaseUrl: process.env.MODAL_BASE_URL || '',
+            modalApiKey: process.env.MODAL_API_KEY || '',
           });
 
-          // Update generation with job ID
+          // Update generation with workflow ID
           await db.updateGeneration(generation.id, {
-            status: modalResult.status,
+            status: 'processing',
           });
 
           return { 
             generationId: generation.id, 
-            jobId: modalResult.jobId,
-            status: modalResult.status 
+            workflowId: workflowHandle.workflowId,
+            status: 'processing' 
           };
         } catch (error) {
           // Update generation with error

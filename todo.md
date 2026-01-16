@@ -859,3 +859,53 @@
 - [ ] Document troubleshooting procedures
 - [ ] Add performance benchmarking guide
 - [ ] Write integration tests for complete workflow
+
+## Phase 18: Temporal Workflow & Queue Management (Level 5 Architecture)
+
+### Phase 18.1: Temporal Workflow Definitions (Complete)
+- [x] Create temporal_workflows.py with Temporal workflow definitions
+- [x] Implement MusicGenerationWorkflow with retry logic
+- [x] Implement StemSeparationWorkflow with retry logic
+- [x] Add workflow activities for Modal API calls
+- [x] Add workflow error handling and compensation logic
+- [x] Configure workflow timeouts and retry policies (exponential backoff, 5 max attempts)
+- [x] Add workflow status tracking and progress updates
+- [x] Add polling logic for job completion
+- [x] Add notification activities for completion/failure
+
+### Phase 18.2: Temporal Client Integration (Complete)
+- [x] Install Temporal Node.js SDK (`pnpm add @temporalio/client @temporalio/worker`)
+- [x] Create Temporal client in server/temporalClient.ts
+- [x] Update aiStudio router to use Temporal workflows
+- [x] Replace direct Modal calls with Temporal workflow execution for generateMusic
+- [x] Add workflow cancellation support (cancelWorkflow function)
+- [x] Add workflow status query function (queryWorkflowStatus)
+- [x] Update frontend to use workflowId instead of jobId
+- [ ] Test workflow execution end-to-end (requires Temporal server deployment)
+
+### Phase 18.3: Generation Queue Management (Complete)
+- [x] Create generation_queue table in database
+- [x] Create user_queue_stats table for rate limiting
+- [x] Implement priority queue logic (user tier-based)
+- [x] Add rate limiting (max 3 concurrent jobs per user)
+- [x] Create queueDb.ts with all queue management functions
+- [x] Implement enqueueGeneration, startQueuedGeneration, completeQueuedGeneration
+- [x] Add getUserQueueStats, canUserQueueJob, getUserConcurrentJobs
+- [x] Add getNextQueuedGeneration for worker process
+- [x] Add getUserQueuePosition for UI display
+- [x] Add getQueueAnalytics for dashboard
+- [ ] Add queue management tRPC router
+- [ ] Create queue position indicator in UI
+- [ ] Implement queue worker process
+- [ ] Test queue with multiple concurrent users
+
+### Phase 18.4: Deployment & Testing Guide (Complete)
+- [x] Create TEMPORAL_DEPLOYMENT.md with comprehensive setup instructions
+- [x] Document Temporal server setup (local/cloud)
+- [x] Create docker-compose.yml for local Temporal dev
+- [x] Document architecture overview with diagrams
+- [x] Add troubleshooting section
+- [x] Document monitoring and observability
+- [x] Add production deployment options (Temporal Cloud + self-hosted)
+- [ ] Write integration tests for workflows
+- [ ] Test complete autonomous workflow end-to-end
