@@ -522,10 +522,30 @@
 - [x] Create automation database functions (lanes & points)
 - [x] Build tRPC automation router with CRUD operations
 - [x] Write comprehensive automation tests (14 passing tests)
-- [ ] Add automation lane toggle button to each Timeline track
+
+### Phase 10.1: Timeline UI Integration (Current)
+- [ ] Add automation lane toggle button to each Timeline track header
+- [x] Create AutomationLaneRenderer component for curve display
+- [ ] Integrate AutomationLaneRenderer into TimelineV2 component
 - [ ] Render automation curves synchronized with Timeline zoom/scroll
-- [ ] Connect automation points to track volume and pan UI
-- [ ] Add automation recording mode (capture live changes)
+- [ ] Connect automation editor to Timeline track selection
+- [ ] Add visual feedback for enabled/disabled lanes
+- [x] Implement click-to-add automation points (in AutomationLaneRenderer)
+- [x] Implement drag-to-move automation points (in AutomationLaneRenderer)
+
+### Phase 10.2: Automation Recording Mode
+- [ ] Add record button to automation lanes
+- [ ] Capture live parameter changes during playback
+- [ ] Convert MIDI controller input to automation points
+- [ ] Implement punch-in/punch-out recording
+- [ ] Add automation overdub vs replace modes
+
+### Phase 10.3: Bezier Curve Support
+- [ ] Extend automation point schema with bezier handles
+- [ ] Add draggable handle controls to automation editor
+- [ ] Implement cubic bezier interpolation
+- [ ] Add curve smoothing algorithm
+- [ ] Create curve type selector (linear, bezier, step)
 
 ## Phase 11: Marketplace Frontend & Stripe Integration
 - [ ] Create marketplace search/browse interface with filters
