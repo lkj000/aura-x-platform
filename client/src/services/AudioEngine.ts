@@ -76,6 +76,13 @@ class AudioEngineService {
   private analyzer: Tone.Analyser | null = null;
   private recorder: Tone.Recorder | null = null;
   private audioBufferCache: Map<string, Tone.ToneAudioBuffer> = new Map();
+  private automationRecording: {
+    trackId: string;
+    parameter: string;
+    points: AutomationPoint[];
+    startTime: number;
+    mode: 'replace' | 'overdub';
+  } | null = null;
 
   /**
    * Initialize the audio context (required for user interaction)
@@ -312,6 +319,143 @@ class AudioEngineService {
 
     this.tracks.delete(trackId);
     console.log(`[AudioEngine] Track removed: ${trackId}`);
+  }
+
+  /**
+   * Start recording automation for a track parameter
+   */
+  startAutomationRecording(
+    trackId: string,
+    parameter: 'volume' | 'pan' | 'eq_low' | 'eq_mid' | 'eq_high' | 'reverb_wet' | 'delay_wet',
+    mode: 'replace' | 'overdub' = 'replace'
+  ): void {
+    if (!this.tracks.has(trackId)) {
+      console.error(`[AudioEngine] Track not found: ${trackId}`);
+      return;
+    }
+
+    this.automationRecording = {
+      trackId,
+      parameter,
+      points: [],
+      startTime: Tone.getTransport().seconds,
+      mode,
+    };
+
+    console.log(`[AudioEngine] Started automation recording for ${trackId}.${parameter} (${mode})`);
+  }
+
+  /**
+   * Record an automation point during playback
+   */
+  recordAutomationPoint(value: number): void {
+    if (!this.automationRecording) return;
+
+    const currentTime = Tone.getTransport().seconds - this.automationRecording.startTime;
+    
+    this.automationRecording.points.push({
+      time: currentTime,
+      value: Math.max(0, Math.min(1, value)), // Clamp to 0-1
+    });
+  }
+
+  /**
+   * Stop recording automation and return the recorded points
+   */
+  stopAutomationRecording(): AutomationPoint[] | null {
+    if (!this.automationRecording) return null;
+
+    const points = this.automationRecording.points;
+    this.automationRecording = null;
+
+    console.log(`[AudioEngine] Stopped automation recording. Recorded ${points.length} points`);
+    return points;
+  }
+
+  /**
+   * Check if automation recording is active
+   */
+  isRecordingAutomation(): boolean {
+    return this.automationRecording !== null;
+  }
+
+  /**
+   * Get current automation recording state
+   */
+  getAutomationRecordingState(): {
+    trackId: string;
+    parameter: string;
+    mode: 'replace' | 'overdub';
+  } | null {
+    if (!this.automationRecording) return null;
+
+    return {
+      trackId: this.automationRecording.trackId,
+      parameter: this.automationRecording.parameter,
+      mode: this.automationRecording.mode,
+    };
+  }
+
+  /**
+   * Get current value of a parameter for a track (normalized 0-1)
+   */
+  getParameterValue(
+    trackId: string,
+    parameter: 'volume' | 'pan' | 'eq_low' | 'eq_mid' | 'eq_high' | 'reverb_wet' | 'delay_wet'
+  ): number {
+    const channel = this.trackChannels.get(trackId);
+    if (!channel) return 0.5; // Default middle value
+
+    switch (parameter) {
+      case 'volume': {
+        // Volume: -60 to 0 dB → 0 to 1
+        const dbValue = channel.volume.value;
+        return (dbValue + 60) / 60;
+      }
+      case 'pan': {
+        // Pan: -1 to 1 → 0 to 1
+        const panValue = channel.pan.value;
+        return (panValue + 1) / 2;
+      }
+      // Add more parameters as needed
+      default:
+        return 0.5;
+    }
+  }
+
+  /**
+   * Cubic bezier interpolation for smooth curves
+   */
+  private cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number): number {
+    const u = 1 - t;
+    return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
+  }
+
+  /**
+   * Interpolate between two automation points based on curve type
+   */
+  private interpolateAutomation(
+    point1: AutomationPoint,
+    point2: AutomationPoint,
+    currentTime: number
+  ): number {
+    const t = (currentTime - point1.time) / (point2.time - point1.time);
+    
+    // Check if points have bezier handles (simplified check)
+    const hasBezierHandles = point1.time !== undefined && point2.time !== undefined;
+    
+    if (hasBezierHandles) {
+      // Use cubic bezier interpolation
+      // For now, use simple bezier with control points at 1/3 and 2/3
+      const p0 = point1.value;
+      const p1 = point1.value + (point2.value - point1.value) * 0.33;
+      const p2 = point1.value + (point2.value - point1.value) * 0.67;
+      const p3 = point2.value;
+      return this.cubicBezier(t, p0, p1, p2, p3);
+    } else {
+      // Linear interpolation
+      return point1.value + (point2.value - point1.value) * t;
+    }
   }
 
   /**

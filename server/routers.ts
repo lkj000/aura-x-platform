@@ -781,6 +781,11 @@ export const appRouter = router({
         laneId: z.number(),
         time: z.number(),
         value: z.number(),
+        curveType: z.enum(['linear', 'bezier', 'step']).optional(),
+        handleInX: z.number().optional(),
+        handleInY: z.number().optional(),
+        handleOutX: z.number().optional(),
+        handleOutY: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         return db.createAutomationPoint(input);
@@ -799,6 +804,11 @@ export const appRouter = router({
         id: z.number(),
         time: z.number().optional(),
         value: z.number().optional(),
+        curveType: z.enum(['linear', 'bezier', 'step']).optional(),
+        handleInX: z.number().optional(),
+        handleInY: z.number().optional(),
+        handleOutX: z.number().optional(),
+        handleOutY: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...updates } = input;
@@ -819,13 +829,17 @@ export const appRouter = router({
         points: z.array(z.object({
           time: z.number(),
           value: z.number(),
+          curveType: z.enum(['linear', 'bezier', 'step']).optional(),
+          handleInX: z.number().optional(),
+          handleInY: z.number().optional(),
+          handleOutX: z.number().optional(),
+          handleOutY: z.number().optional(),
         })),
       }))
       .mutation(async ({ input }) => {
         const pointsWithLaneId = input.points.map(p => ({
           laneId: input.laneId,
-          time: p.time,
-          value: p.value,
+          ...p,
         }));
         return db.bulkCreateAutomationPoints(pointsWithLaneId);
       }),
@@ -835,6 +849,149 @@ export const appRouter = router({
       .input(z.object({ laneId: z.number() }))
       .mutation(async ({ input }) => {
         return db.deleteAutomationPointsByLane(input.laneId);
+      }),
+  }),
+
+  // Marketplace router
+  marketplace: router({  
+    // List sample packs with filters
+    listPacks: publicProcedure
+      .input(z.object({
+        search: z.string().optional(),
+        category: z.string().optional(),
+        sortBy: z.enum(['popular', 'recent', 'price_low', 'price_high']).default('popular'),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ input }) => {
+        return db.listMarketplacePacks(input);
+      }),
+
+    // Get single pack details
+    getPack: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getMarketplacePack(input.id);
+      }),
+
+    // Create sample pack (seller)
+    createPack: protectedProcedure
+      .input(z.object({
+        title: z.string(),
+        description: z.string(),
+        price: z.number(),
+        category: z.string(),
+        tags: z.array(z.string()).optional(),
+        coverImage: z.string().optional(),
+        previewAudio: z.string().optional(),
+        fileUrl: z.string(),
+        fileSize: z.number().optional(),
+        sampleCount: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createMarketplacePack({
+          sellerId: ctx.user.id,
+          ...input,
+        });
+      }),
+
+    // Create checkout session for pack purchase
+    createCheckoutSession: protectedProcedure
+      .input(z.object({
+        packId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const pack = await db.getMarketplacePack(input.packId);
+        if (!pack) {
+          throw new Error('Sample pack not found');
+        }
+
+        // Import Stripe
+        const Stripe = (await import('stripe')).default;
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+          apiVersion: '2024-12-18.acacia',
+        });
+
+        // Create checkout session
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: pack.title,
+                  description: pack.description || undefined,
+                  images: pack.coverImage ? [pack.coverImage] : undefined,
+                  metadata: {
+                    pack_id: pack.id.toString(),
+                    category: pack.category,
+                    seller_id: pack.sellerId.toString(),
+                  },
+                },
+                unit_amount: Math.round(Number(pack.price) * 100), // Convert to cents
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: `${ctx.req.headers.origin}/marketplace?success=true&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${ctx.req.headers.origin}/marketplace?canceled=true`,
+          customer_email: ctx.user.email || undefined,
+          client_reference_id: ctx.user.id.toString(),
+          metadata: {
+            user_id: ctx.user.id.toString(),
+            pack_id: pack.id.toString(),
+            customer_email: ctx.user.email || '',
+            customer_name: ctx.user.name || '',
+          },
+          allow_promotion_codes: true,
+        });
+
+        return {
+          sessionId: session.id,
+          url: session.url,
+        };
+      }),
+
+    // Purchase pack (called by webhook after successful payment)
+    purchasePack: protectedProcedure
+      .input(z.object({
+        packId: z.number(),
+        paymentIntentId: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createMarketplacePurchase({
+          userId: ctx.user.id,
+          packId: input.packId,
+          paymentIntentId: input.paymentIntentId,
+        });
+      }),
+
+    // Get user purchases
+    getUserPurchases: protectedProcedure
+      .query(async ({ ctx }) => {
+        return db.getUserMarketplacePurchases(ctx.user.id);
+      }),
+
+    // Add review
+    addReview: protectedProcedure
+      .input(z.object({
+        packId: z.number(),
+        rating: z.number().min(1).max(5),
+        comment: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createMarketplaceReview({
+          userId: ctx.user.id,
+          ...input,
+        });
+      }),
+
+    // Get pack reviews
+    getPackReviews: publicProcedure
+      .input(z.object({ packId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getMarketplaceReviews(input.packId);
       }),
   }),
 

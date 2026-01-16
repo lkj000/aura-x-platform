@@ -10,7 +10,8 @@ import {
   Menu,
   Bell,
   User,
-  History
+  History,
+  ShoppingBag
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ export default function Layout({ children }: LayoutProps) {
     { icon: Mic2, label: 'Instruments', path: '/instruments' },
     { icon: Activity, label: 'Analysis', path: '/analysis' },
     { icon: History, label: 'History', path: '/history' },
+    { icon: ShoppingBag, label: 'Marketplace', path: '/marketplace' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

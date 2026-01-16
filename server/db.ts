@@ -1,10 +1,11 @@
-import { eq, and, desc, inArray, like } from "drizzle-orm";
+import { eq, and, desc, inArray, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, projects, tracks, generations, mediaLibrary, generationHistory,
   audioClips, midiNotes, samples, presetFavorites, customPresets,
   projectCollaborators, projectActivityLog, projectInvitations,
   automationLanes, automationPoints,
+  marketplaceSamplePacks, marketplacePurchases, marketplaceReviews,
   type Project, type Track, type Generation, type InsertProject, type InsertTrack, type InsertGeneration, 
   type GenerationHistory, type InsertGenerationHistory, type AudioClip, type InsertAudioClip,
   type MidiNote, type InsertMidiNote, type Sample, type MediaLibraryItem, type InsertMediaLibraryItem,
@@ -775,4 +776,171 @@ export async function deleteAutomationPointsByLane(laneId: number): Promise<void
   if (!db) throw new Error("Database not available");
 
   await db.delete(automationPoints).where(eq(automationPoints.laneId, laneId));
+}
+
+// ========================================
+// Marketplace Sample Packs
+// ========================================
+
+export async function listMarketplacePacks(filters: {
+  search?: string;
+  category?: string;
+  sortBy?: 'popular' | 'recent' | 'price_low' | 'price_high';
+  limit?: number;
+}): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Build conditions
+  const conditions = [];
+  if (filters.search) {
+    conditions.push(
+      or(
+        like(marketplaceSamplePacks.title, `%${filters.search}%`),
+        like(marketplaceSamplePacks.description, `%${filters.search}%`)
+      )
+    );
+  }
+  if (filters.category) {
+    conditions.push(eq(marketplaceSamplePacks.category, filters.category));
+  }
+
+  // Build query
+  let baseQuery = db.select().from(marketplaceSamplePacks);
+  
+  if (conditions.length > 0) {
+    baseQuery = baseQuery.where(and(...conditions)) as any;
+  }
+
+  // Apply sorting
+  switch (filters.sortBy) {
+    case 'recent':
+      baseQuery = baseQuery.orderBy(desc(marketplaceSamplePacks.createdAt)) as any;
+      break;
+    case 'price_low':
+      baseQuery = baseQuery.orderBy(marketplaceSamplePacks.price) as any;
+      break;
+    case 'price_high':
+      baseQuery = baseQuery.orderBy(desc(marketplaceSamplePacks.price)) as any;
+      break;
+    case 'popular':
+    default:
+      baseQuery = baseQuery.orderBy(desc(marketplaceSamplePacks.createdAt)) as any; // Use createdAt as fallback
+      break;
+  }
+
+  const results = await baseQuery.limit(filters.limit || 50);
+  return results;
+}
+
+export async function getMarketplacePack(id: number): Promise<any | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.select().from(marketplaceSamplePacks)
+    .where(eq(marketplaceSamplePacks.id, id))
+    .limit(1);
+
+  return result[0] || null;
+}
+
+export async function createMarketplacePack(pack: any): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(marketplaceSamplePacks).values(pack);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(marketplaceSamplePacks)
+    .where(eq(marketplaceSamplePacks.id, insertedId))
+    .limit(1);
+  return inserted[0]!;
+}
+
+// ========================================
+// Marketplace Purchases
+// ========================================
+
+export async function createMarketplacePurchase(purchase: {
+  userId: number;
+  packId: number;
+  paymentIntentId: string;
+}): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get pack price
+  const pack = await getMarketplacePack(purchase.packId);
+  if (!pack) throw new Error("Pack not found");
+
+  const result = await db.insert(marketplacePurchases).values({
+    ...purchase,
+    amount: pack.price,
+  });
+  const insertedId = Number(result[0].insertId);
+
+  // Increment purchase count (if field exists)
+  // Note: purchaseCount field may need to be added to schema
+  try {
+    await db.update(marketplaceSamplePacks)
+      .set({ 
+        updatedAt: new Date()
+      })
+      .where(eq(marketplaceSamplePacks.id, purchase.packId));
+  } catch (error) {
+    console.warn('[Marketplace] Could not update pack after purchase:', error);
+  }
+  
+  const inserted = await db.select().from(marketplacePurchases)
+    .where(eq(marketplacePurchases.id, insertedId))
+    .limit(1);
+  return inserted[0]!;
+}
+
+export async function getUserMarketplacePurchases(userId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(marketplacePurchases)
+    .where(eq(marketplacePurchases.userId, userId))
+    .orderBy(desc(marketplacePurchases.purchasedAt));
+}
+
+// ========================================
+// Marketplace Reviews
+// ========================================
+
+export async function createMarketplaceReview(review: {
+  userId: number;
+  packId: number;
+  rating: number;
+  comment?: string;
+}): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(marketplaceReviews).values(review);
+  const insertedId = Number(result[0].insertId);
+
+  // Update pack average rating
+  const reviews = await getMarketplaceReviews(review.packId);
+  const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+  
+  await db.update(marketplaceSamplePacks)
+    .set({ rating: avgRating })
+    .where(eq(marketplaceSamplePacks.id, review.packId));
+  
+  const inserted = await db.select().from(marketplaceReviews)
+    .where(eq(marketplaceReviews.id, insertedId))
+    .limit(1);
+  return inserted[0]!;
+}
+
+export async function getMarketplaceReviews(packId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(marketplaceReviews)
+    .where(eq(marketplaceReviews.packId, packId))
+    .orderBy(desc(marketplaceReviews.createdAt));
 }

@@ -77,6 +77,48 @@ export function useAudioEngine() {
     setCurrentPosition(seconds);
   }, []);
 
+  // Automation recording controls
+  const startAutomationRecording = useCallback(
+    (
+      trackId: string,
+      parameter: 'volume' | 'pan' | 'eq_low' | 'eq_mid' | 'eq_high' | 'reverb_wet' | 'delay_wet',
+      mode: 'replace' | 'overdub' = 'replace'
+    ) => {
+      if (!isInitialized) {
+        console.warn('[useAudioEngine] Cannot start recording: not initialized');
+        return;
+      }
+      AudioEngine.startAutomationRecording(trackId, parameter, mode);
+    },
+    [isInitialized]
+  );
+
+  const recordAutomationPoint = useCallback((value: number) => {
+    AudioEngine.recordAutomationPoint(value);
+  }, []);
+
+  const stopAutomationRecording = useCallback(() => {
+    return AudioEngine.stopAutomationRecording();
+  }, []);
+
+  const isRecordingAutomation = useCallback(() => {
+    return AudioEngine.isRecordingAutomation();
+  }, []);
+
+  const getAutomationRecordingState = useCallback(() => {
+    return AudioEngine.getAutomationRecordingState();
+  }, []);
+
+  const getParameterValue = useCallback(
+    (
+      trackId: string,
+      parameter: 'volume' | 'pan' | 'eq_low' | 'eq_mid' | 'eq_high' | 'reverb_wet' | 'delay_wet'
+    ) => {
+      return AudioEngine.getParameterValue(trackId, parameter);
+    },
+    []
+  );
+
   return {
     isInitialized,
     transportState,
@@ -89,5 +131,11 @@ export function useAudioEngine() {
     togglePlay,
     setTempo,
     seek,
+    startAutomationRecording,
+    recordAutomationPoint,
+    stopAutomationRecording,
+    isRecordingAutomation,
+    getAutomationRecordingState,
+    getParameterValue,
   };
 }

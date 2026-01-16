@@ -510,6 +510,7 @@ export default function TimelineV2({
                     zoom={zoom}
                     timelineWidth={60 * zoom}
                     pixelsPerSecond={zoom}
+                    isPlaying={isPlaying}
                   />
                 )}
               </div>
