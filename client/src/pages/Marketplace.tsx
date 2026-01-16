@@ -132,14 +132,14 @@ export default function Marketplace() {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-                      <span>{pack.rating?.toFixed(1) || 'New'}</span>
+                      <span>{pack.rating ? Number(pack.rating).toFixed(1) : 'New'}</span>
                       <span>•</span>
                       <span>{pack.purchaseCount || 0} sales</span>
                     </div>
                   </CardContent>
                   <CardFooter className="flex items-center justify-between pt-3 border-t">
                     <div className="text-2xl font-bold">
-                      ${pack.price.toFixed(2)}
+                      ${Number(pack.price).toFixed(2)}
                     </div>
                     <div className="flex gap-2">
                       {pack.previewAudio && (

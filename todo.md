@@ -576,3 +576,8 @@
 - [ ] Implement automation edit synchronization
 - [ ] Add chat system for collaborators
 - [ ] Create session recording/playback
+
+## Bug Fixes
+- [x] Fix marketplace rating display error (pack.rating is string, needs Number() conversion)
+- [x] Fix marketplace price display error (pack.price is string, needs Number() conversion)
+- [x] Fix Stripe API version mismatch (updated to 2025-12-15.clover)
