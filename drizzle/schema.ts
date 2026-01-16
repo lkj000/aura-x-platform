@@ -72,7 +72,7 @@ export const generations = mysqlTable("generations", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(), // Foreign key to users
   projectId: int("projectId"), // Optional: link to a project
-  type: varchar("type", { length: 50 }).notNull(), // "music", "stem_separation", "mastering"
+  type: varchar("type", { length: 50 }).notNull(), // "music", "stem_separation", "mastering", "lyrics"
   prompt: text("prompt").notNull(), // User's generation prompt
   parameters: json("parameters"), // JSON object with generation parameters
   status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
@@ -81,6 +81,19 @@ export const generations = mysqlTable("generations", {
   processingTime: int("processingTime"), // Time in milliseconds
   errorMessage: text("errorMessage"),
   workflowId: varchar("workflowId", { length: 255 }), // Temporal workflow ID
+  // Suno-style fields
+  lyrics: text("lyrics"), // Generated or user-provided lyrics
+  style: varchar("style", { length: 100 }), // Genre/style tags
+  title: varchar("title", { length: 255 }), // Track title
+  stemsUrl: json("stemsUrl"), // URLs to separated stems {drums, bass, vocals, other}
+  parentId: int("parentId"), // For variations/versions
+  variationType: varchar("variationType", { length: 50 }), // "remix", "variation", "extend"
+  duration: int("duration"), // Duration in seconds
+  bpm: int("bpm"),
+  key: varchar("key", { length: 10 }),
+  mood: varchar("mood", { length: 100 }),
+  vocalStyle: varchar("vocalStyle", { length: 100 }), // "male", "female", "none"
+  isFavorite: boolean("isFavorite").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 });

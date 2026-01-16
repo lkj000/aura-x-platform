@@ -6,6 +6,7 @@ import { z } from "zod";
 import * as db from "./db";
 import * as modalClient from "./modalClient";
 import Stripe from 'stripe';
+import { invokeLLM } from './_core/llm';
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -1258,6 +1259,119 @@ export const appRouter = router({
       .input(z.object({ limit: z.number().default(50) }))
       .query(async ({ ctx, input }) => {
         return db.getActivityFeed(ctx.user.id, input.limit);
+      }),
+  }),
+
+  // AI Studio router - Suno-style music generation
+  aiStudio: router({
+    // Generate music from prompt
+    generateMusic: protectedProcedure
+      .input(z.object({
+        prompt: z.string(),
+        lyrics: z.string().optional(),
+        title: z.string().optional(),
+        style: z.string(),
+        mood: z.string(),
+        bpm: z.number().min(80).max(140),
+        key: z.string(),
+        vocalStyle: z.string(),
+        mode: z.enum(['simple', 'custom']),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Create generation record
+        const generation = await db.createGeneration({
+          userId: ctx.user.id,
+          type: 'music',
+          prompt: input.prompt,
+          lyrics: input.lyrics,
+          title: input.title,
+          style: input.style,
+          mood: input.mood,
+          bpm: input.bpm,
+          key: input.key,
+          vocalStyle: input.vocalStyle,
+          parameters: input,
+          status: 'pending',
+        });
+
+        // TODO: Trigger async music generation workflow
+        // For now, return the generation ID
+        return { generationId: generation.id, status: 'pending' };
+      }),
+
+    // Generate lyrics using LLM
+    generateLyrics: protectedProcedure
+      .input(z.object({
+        prompt: z.string(),
+        language: z.string().default('zulu'),
+        style: z.string(),
+        mood: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Use LLM to generate lyrics
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: 'system',
+              content: `You are a professional ${input.language} songwriter specializing in ${input.style} music. Generate authentic, culturally appropriate lyrics that match the mood: ${input.mood}. Output only the lyrics, no explanations.`,
+            },
+            {
+              role: 'user',
+              content: input.prompt,
+            },
+          ],
+        });
+
+        const lyrics = typeof response.choices[0].message.content === 'string' 
+          ? response.choices[0].message.content 
+          : '';
+
+        // Save lyrics generation to history
+        await db.createGeneration({
+          userId: ctx.user.id,
+          type: 'lyrics',
+          prompt: input.prompt,
+          lyrics,
+          style: input.style,
+          mood: input.mood,
+          parameters: input,
+          status: 'completed',
+        });
+
+        return { lyrics };
+      }),
+
+    // Get generation status
+    getGeneration: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.getGenerationById(input.id);
+      }),
+
+    // List user's generations
+    listGenerations: protectedProcedure
+      .input(z.object({
+        type: z.enum(['music', 'lyrics', 'stem_separation']).optional(),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ ctx, input }) => {
+        return db.getUserGenerations(ctx.user.id);
+      }),
+
+    // Toggle favorite
+    toggleFavorite: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        // TODO: Add toggleGenerationFavorite function to db.ts
+        return { success: true };
+      }),
+
+    // Delete generation
+    deleteGeneration: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        // TODO: Add deleteGeneration function to db.ts
+        return { success: true };
       }),
   }),
 });

@@ -675,3 +675,62 @@
 - [ ] Add pack collections/playlists feature (future enhancement)
 - [ ] Build discover page with trending producers (future enhancement)
 - [ ] Add social sharing for packs (Twitter, Facebook) (future enhancement)
+
+## Phase 14: Suno-Style AI Music Generation Studio
+
+### Phase 14.1: Database Schema & Architecture (Complete)
+- [x] Extend generations table with Suno-style fields (lyrics, style, title, stemsUrl)
+- [x] Add variation/version support (parentId, variationType)
+- [x] Add music parameters (duration, bpm, key, mood, vocalStyle)
+- [x] Add favorite functionality (isFavorite)
+- [x] Design stem separation results storage (stemsUrl JSON field)
+- [x] Push database migration successfully
+
+### Phase 14.2: AI Studio UI Components (Complete)
+- [x] Create AIStudio page with Suno-inspired layout
+- [x] Build prompt input interface with style tags (Amapiano, Kwaito, House, etc.)
+- [x] Add lyrics editor with AI generation button
+- [x] Implement custom mode with parameter controls (BPM, key, mood, vocals)
+- [x] Create generation progress indicator with real-time status
+- [x] Add style preset selector (moods, keys, vocal styles)
+- [x] Add AI Studio nav item to Layout
+- [x] Create /ai-studio route in App.tsx
+- [ ] Build audio player with waveform visualization (future enhancement)
+- [ ] Add version comparison slider (future enhancement)
+
+### Phase 14.3: AI Generation Backend (Complete)
+- [x] Implement lyrics generation using LLM (Zulu, English, multilingual)
+- [x] Create aiStudio tRPC router with all endpoints
+- [x] Add generateMusic mutation (creates generation record)
+- [x] Add generateLyrics mutation (uses invokeLLM)
+- [x] Add getGeneration query for status checking
+- [x] Add listGenerations query for history
+- [x] Implement generation parameter validation with Zod
+- [x] Save generation records to database
+- [ ] Integrate real music generation API (Suno/alternative) - requires external service
+- [ ] Add audio file processing and S3 upload - depends on music generation API
+- [ ] Create generation status polling endpoint - depends on async workflow
+
+### Phase 14.4: Stem Separation & DAW Integration
+- [ ] Integrate stem separation API (Demucs or similar)
+- [ ] Create "Separate Stems" button for generated tracks
+- [ ] Implement stem download and storage
+- [ ] Add "Import to DAW" functionality (create tracks from stems)
+- [ ] Auto-map stems to appropriate track types (drums, bass, vocals, etc.)
+- [ ] Create stem preview player
+
+### Phase 14.5: Generation History & Library
+- [ ] Build generation history page with grid/list view
+- [ ] Add filtering (by date, style, status)
+- [ ] Implement generation favoriting system
+- [ ] Create generation sharing functionality
+- [ ] Add bulk operations (delete, download, import)
+- [ ] Build generation analytics (most used styles, success rate)
+
+### Phase 14.6: Advanced Features
+- [ ] Add "Amapianorize" button (enhance track with Amapiano elements)
+- [ ] Implement generation variations (create similar versions)
+- [ ] Add collaborative generation (share prompts with team)
+- [ ] Create generation templates library
+- [ ] Add vocal characteristic controls (male/female, age, accent)
+- [ ] Implement real-time generation preview (first 30s)

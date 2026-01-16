@@ -1329,3 +1329,4 @@ export async function addActivity(data: InsertActivityFeedItem): Promise<any> {
   const [activity] = await db.insert(activityFeed).values(data).$returningId();
   return db.select().from(activityFeed).where(eq(activityFeed.id, activity.id)).then(rows => rows[0]);
 }
+
