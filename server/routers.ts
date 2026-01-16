@@ -736,6 +736,108 @@ export const appRouter = router({
       }),
   }),
 
+  // Automation router
+  automation: router({
+    // Create automation lane
+    createLane: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        trackId: z.number(),
+        parameter: z.enum(['volume', 'pan', 'eq_low', 'eq_mid', 'eq_high', 'reverb_wet', 'delay_wet']),
+        enabled: z.boolean().default(true),
+      }))
+      .mutation(async ({ input }) => {
+        return db.createAutomationLane(input);
+      }),
+
+    // Get automation lanes for track
+    getByTrack: protectedProcedure
+      .input(z.object({ trackId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getAutomationLanesByTrack(input.trackId);
+      }),
+
+    // Update automation lane
+    updateLane: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        enabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        return db.updateAutomationLane(id, updates);
+      }),
+
+    // Delete automation lane
+    deleteLane: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.deleteAutomationLane(input.id);
+      }),
+
+    // Create automation point
+    createPoint: protectedProcedure
+      .input(z.object({
+        laneId: z.number(),
+        time: z.number(),
+        value: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        return db.createAutomationPoint(input);
+      }),
+
+    // Get automation points for lane
+    getPoints: protectedProcedure
+      .input(z.object({ laneId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getAutomationPointsByLane(input.laneId);
+      }),
+
+    // Update automation point
+    updatePoint: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        time: z.number().optional(),
+        value: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        return db.updateAutomationPoint(id, updates);
+      }),
+
+    // Delete automation point
+    deletePoint: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.deleteAutomationPoint(input.id);
+      }),
+
+    // Bulk create automation points
+    bulkCreatePoints: protectedProcedure
+      .input(z.object({
+        laneId: z.number(),
+        points: z.array(z.object({
+          time: z.number(),
+          value: z.number(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const pointsWithLaneId = input.points.map(p => ({
+          laneId: input.laneId,
+          time: p.time,
+          value: p.value,
+        }));
+        return db.bulkCreateAutomationPoints(pointsWithLaneId);
+      }),
+
+    // Delete all points for a lane
+    deleteAllPoints: protectedProcedure
+      .input(z.object({ laneId: z.number() }))
+      .mutation(async ({ input }) => {
+        return db.deleteAutomationPointsByLane(input.laneId);
+      }),
+  }),
+
   // Quality Scoring router
   qualityScoring: router({
     analyze: protectedProcedure

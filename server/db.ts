@@ -4,13 +4,16 @@ import {
   InsertUser, users, projects, tracks, generations, mediaLibrary, generationHistory,
   audioClips, midiNotes, samples, presetFavorites, customPresets,
   projectCollaborators, projectActivityLog, projectInvitations,
+  automationLanes, automationPoints,
   type Project, type Track, type Generation, type InsertProject, type InsertTrack, type InsertGeneration, 
   type GenerationHistory, type InsertGenerationHistory, type AudioClip, type InsertAudioClip,
   type MidiNote, type InsertMidiNote, type Sample, type MediaLibraryItem, type InsertMediaLibraryItem,
   type PresetFavorite, type InsertPresetFavorite, type CustomPreset, type InsertCustomPreset,
   type ProjectCollaborator, type InsertProjectCollaborator,
   type ProjectActivityLog, type InsertProjectActivityLog,
-  type ProjectInvitation, type InsertProjectInvitation
+  type ProjectInvitation, type InsertProjectInvitation,
+  type AutomationLane, type InsertAutomationLane,
+  type AutomationPoint, type InsertAutomationPoint
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -677,4 +680,99 @@ export async function getPendingInvitations(userId: number): Promise<ProjectInvi
       eq(projectInvitations.status, 'pending')
     ))
     .orderBy(desc(projectInvitations.createdAt));
+}
+
+// ========================================
+// Automation Lanes & Points
+// ========================================
+
+export async function createAutomationLane(lane: InsertAutomationLane): Promise<AutomationLane> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(automationLanes).values(lane);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(automationLanes).where(eq(automationLanes.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function getAutomationLanesByTrack(trackId: number): Promise<AutomationLane[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(automationLanes)
+    .where(eq(automationLanes.trackId, trackId));
+}
+
+export async function updateAutomationLane(id: number, updates: Partial<InsertAutomationLane>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(automationLanes)
+    .set(updates)
+    .where(eq(automationLanes.id, id));
+}
+
+export async function deleteAutomationLane(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Delete all points first
+  await db.delete(automationPoints).where(eq(automationPoints.laneId, id));
+  
+  // Delete lane
+  await db.delete(automationLanes).where(eq(automationLanes.id, id));
+}
+
+export async function createAutomationPoint(point: InsertAutomationPoint): Promise<AutomationPoint> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(automationPoints).values(point);
+  const insertedId = Number(result[0].insertId);
+  
+  const inserted = await db.select().from(automationPoints).where(eq(automationPoints.id, insertedId)).limit(1);
+  return inserted[0]!;
+}
+
+export async function getAutomationPointsByLane(laneId: number): Promise<AutomationPoint[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(automationPoints)
+    .where(eq(automationPoints.laneId, laneId))
+    .orderBy(automationPoints.time);
+}
+
+export async function updateAutomationPoint(id: number, updates: Partial<InsertAutomationPoint>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(automationPoints)
+    .set(updates)
+    .where(eq(automationPoints.id, id));
+}
+
+export async function deleteAutomationPoint(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(automationPoints).where(eq(automationPoints.id, id));
+}
+
+export async function bulkCreateAutomationPoints(points: InsertAutomationPoint[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (points.length === 0) return;
+
+  await db.insert(automationPoints).values(points);
+}
+
+export async function deleteAutomationPointsByLane(laneId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(automationPoints).where(eq(automationPoints.laneId, laneId));
 }

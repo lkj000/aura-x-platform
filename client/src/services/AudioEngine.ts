@@ -21,6 +21,17 @@ export interface AudioClip {
   buffer: Tone.ToneAudioBuffer | null;
 }
 
+export interface AutomationPoint {
+  time: number; // in seconds
+  value: number; // normalized 0-1
+}
+
+export interface AutomationLane {
+  parameter: 'volume' | 'pan' | 'eq_low' | 'eq_mid' | 'eq_high' | 'reverb_wet' | 'delay_wet';
+  points: AutomationPoint[];
+  enabled: boolean;
+}
+
 export interface Track {
   id: string;
   name: string;
@@ -33,6 +44,7 @@ export interface Track {
   muted: boolean;
   solo: boolean;
   effects: EffectChain;
+  automation: AutomationLane[]; // Automation lanes
 }
 
 export interface EffectChain {
@@ -303,6 +315,64 @@ class AudioEngineService {
   }
 
   /**
+   * Schedule automation for a track parameter
+   */
+  private scheduleAutomation(trackId: string, lane: AutomationLane): void {
+    if (!lane.enabled || lane.points.length === 0) return;
+
+    const channel = this.trackChannels.get(trackId);
+    if (!channel) return;
+
+    // Get the audio param to automate
+    let param: Tone.Param<any> | undefined;
+    
+    switch (lane.parameter) {
+      case 'volume':
+        param = channel.volume;
+        break;
+      case 'pan':
+        param = channel.pan;
+        break;
+      // Add more parameters as needed
+      default:
+        console.warn(`[AudioEngine] Unsupported automation parameter: ${lane.parameter}`);
+        return;
+    }
+
+    // Sort points by time
+    const sortedPoints = [...lane.points].sort((a, b) => a.time - b.time);
+
+    // Schedule automation points
+    sortedPoints.forEach((point, index) => {
+      const nextPoint = sortedPoints[index + 1];
+      
+      // Convert normalized value to parameter range
+      let value: number;
+      if (lane.parameter === 'volume') {
+        // Volume: 0-1 → -60 to 0 dB
+        value = point.value * 60 - 60;
+      } else if (lane.parameter === 'pan') {
+        // Pan: 0-1 → -1 to 1
+        value = point.value * 2 - 1;
+      } else {
+        value = point.value;
+      }
+
+      if (nextPoint) {
+        // Linear ramp to next point
+        Tone.getTransport().schedule((time) => {
+          param!.linearRampTo(value, nextPoint.time - point.time, time);
+        }, point.time);
+      } else {
+        // Set value immediately for last point
+        Tone.getTransport().schedule((time) => {
+          param!.setValueAtTime(value, time);
+        }, point.time);
+      }
+    });
+  }
+
+  /**
    * Schedule all tracks for playback
    */
   private scheduleAllTracks(): void {
@@ -313,6 +383,13 @@ class AudioEngineService {
 
     tracksToPlay.forEach(track => {
       if (track.muted) return;
+
+      // Schedule automation
+      if (track.automation && track.automation.length > 0) {
+        track.automation.forEach(lane => {
+          this.scheduleAutomation(track.id, lane);
+        });
+      }
 
       // Schedule MIDI notes
       if (track.type === 'midi' && track.instrument) {
