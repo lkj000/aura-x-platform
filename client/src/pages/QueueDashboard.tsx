@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Users, Clock, Activity } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { RefreshCw, Users, Clock, Activity, Crown, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/_core/hooks/useAuth';
 
 /**
  * Cancel Button Component
@@ -37,6 +39,7 @@ function CancelButton({ queueId, onSuccess }: { queueId: number; onSuccess: () =
  */
 export default function QueueDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const { user } = useAuth();
   
   // Fetch queue analytics
   const { data: analytics, refetch: refetchAnalytics, isLoading } = trpc.queue.getAnalytics.useQuery(undefined, {
@@ -134,8 +137,17 @@ export default function QueueDashboard() {
       {/* User Stats */}
       <Card>
         <CardHeader>
-          <CardTitle>Your Queue Stats</CardTitle>
-          <CardDescription>Your current rate limiting status</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Your Queue Stats</CardTitle>
+              <CardDescription>Your current rate limiting status</CardDescription>
+            </div>
+            <Badge variant={user?.tier === 'enterprise' ? 'default' : user?.tier === 'pro' ? 'secondary' : 'outline'} className="gap-1">
+              {user?.tier === 'enterprise' && <Crown className="h-3 w-3" />}
+              {user?.tier === 'pro' && <Zap className="h-3 w-3" />}
+              {user?.tier?.toUpperCase() || 'FREE'} Tier
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

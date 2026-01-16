@@ -6,8 +6,10 @@
  */
 
 import { getDb } from './db';
-import { generationQueue, userQueueStats } from '../drizzle/schema';
+import { generationQueue, userQueueStats, users } from '../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import { getMaxConcurrentJobs, getPriority, getMaxRetries } from '../shared/tierConfig';
+import type { UserTier } from '../shared/tierConfig';
 
 /**
  * Add generation to queue
@@ -16,16 +18,29 @@ export async function enqueueGeneration(params: {
   userId: number;
   generationId: number;
   workflowId?: string;
-  priority?: number;
+  userTier?: UserTier;
 }): Promise<typeof generationQueue.$inferSelect> {
   const db = await getDb();
   if (!db) throw new Error('Database not available');
+  
+  // Get user tier if not provided
+  let userTier = params.userTier;
+  if (!userTier) {
+    const [user] = await db.select().from(users).where(eq(users.id, params.userId));
+    userTier = (user?.tier as UserTier) || 'free';
+  }
+  
+  // Get tier-based configuration
+  const priority = getPriority(userTier);
+  const maxRetries = getMaxRetries(userTier);
   
   await db.insert(generationQueue).values({
     userId: params.userId,
     generationId: params.generationId,
     workflowId: params.workflowId,
-    priority: params.priority || 0,
+    priority,
+    maxRetries,
+    retryCount: 0,
     status: 'queued',
   });
   
@@ -57,11 +72,16 @@ export async function getUserQueueStats(userId: number) {
   const [stats] = await db.select().from(userQueueStats).where(eq(userQueueStats.userId, userId));
   
   if (!stats) {
-    // Create default stats
+    // Get user tier to set appropriate limits
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    const userTier = (user?.tier as UserTier) || 'free';
+    const maxConcurrentJobs = getMaxConcurrentJobs(userTier);
+    
+    // Create default stats with tier-based limits
     await db.insert(userQueueStats).values({
       userId,
       concurrentJobs: 0,
-      maxConcurrentJobs: 3,
+      maxConcurrentJobs,
       totalJobsQueued: 0,
       totalJobsCompleted: 0,
       totalJobsFailed: 0,

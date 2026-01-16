@@ -948,3 +948,39 @@
 - [x] Database schema updated with queue tables
 - [ ] End-to-end testing requires Temporal deployment
 - [ ] Save checkpoint with all queue features
+
+## Phase 20: Navigation, Tier System & Temporal Deployment (Current)
+
+### Phase 20.1: Queue Dashboard Navigation (Complete)
+- [x] Add Queue Dashboard link to sidebar navigation
+- [x] Add queue icon (ListOrdered) to navigation item
+- [x] Added to Layout.tsx navigation array
+
+### Phase 20.2: User Tier System Implementation (Complete)
+- [x] Add tier enum to users table (free, pro, enterprise)
+- [x] Create tierConfig.ts with tier configuration constants
+- [x] Define maxConcurrentJobs, priority, maxRetries per tier
+- [x] Run database migration (drizzle/0015_loud_captain_universe.sql)
+- [x] Add tier badge display in QueueDashboard
+
+### Phase 20.3: Tier-Based Priority & Rate Limiting (Complete)
+- [x] Update enqueueGeneration to set priority based on tier
+- [x] Update getUserQueueStats to use tier-based maxConcurrentJobs
+- [x] Add tier-based maxConcurrentJobs logic
+- [x] Update QueueDashboard to show tier badge with icons
+- [x] Import tierConfig functions in queueDb.ts
+- [x] Auto-detect user tier from database
+
+### Phase 20.4: Temporal Deployment Automation (Complete)
+- [x] Create start-temporal.sh script with Docker validation
+- [x] Create start-worker.sh script with Python validation
+- [x] Add check-temporal-health.sh comprehensive health check
+- [x] Update TEMPORAL_DEPLOYMENT.md with automation section
+- [x] Make all scripts executable (chmod +x)
+- [x] Add error handling and clear messages
+
+### Phase 20.5: Testing & Final Checkpoint (Ready)
+- [x] Tier system implemented and ready for testing
+- [x] Navigation link added and functional
+- [x] Automation scripts created and documented
+- [ ] Save final checkpoint with all features

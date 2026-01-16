@@ -114,6 +114,30 @@ DATABASE_URL=mysql://user:password@host:port/database
 
 ## Local Development Setup
 
+### Quick Start with Automation Scripts (Recommended)
+
+We provide automation scripts to simplify deployment:
+
+```bash
+# 1. Check system health
+./scripts/check-temporal-health.sh
+
+# 2. Start Temporal server
+./scripts/start-temporal.sh
+
+# 3. Start worker process (in a new terminal)
+./scripts/start-worker.sh
+```
+
+**Script Features**:
+- `check-temporal-health.sh`: Validates Docker, Python, dependencies, and environment
+- `start-temporal.sh`: Starts Temporal with docker-compose and health checks
+- `start-worker.sh`: Starts Python worker with dependency validation
+
+### Manual Setup
+
+If you prefer manual setup or need to customize the deployment:
+
 ### Step 1: Start Temporal Server with Docker Compose
 
 Create `docker-compose.yml` in your project root:
@@ -436,6 +460,55 @@ exporter = PrometheusMetricsExporter()
 ```
 
 ---
+
+## Automation Scripts Reference
+
+### check-temporal-health.sh
+
+Comprehensive health check for your Temporal deployment:
+
+```bash
+./scripts/check-temporal-health.sh
+```
+
+**Checks**:
+- ✅ Docker and docker-compose installation
+- ✅ Temporal server connectivity (port 7233)
+- ✅ Temporal Web UI (port 8080)
+- ✅ Python and required packages (temporalio, modal)
+- ✅ Environment variables (MODAL_API_KEY, DATABASE_URL)
+- ✅ Running Docker containers
+
+### start-temporal.sh
+
+Starts Temporal server using docker-compose:
+
+```bash
+./scripts/start-temporal.sh
+```
+
+**Features**:
+- Validates Docker installation
+- Starts all Temporal services (server, PostgreSQL, Web UI)
+- Waits for services to be healthy
+- Provides next steps and URLs
+- Error handling with clear messages
+
+### start-worker.sh
+
+Starts the Temporal worker process:
+
+```bash
+./scripts/start-worker.sh
+```
+
+**Features**:
+- Validates Python installation
+- Checks Temporal server connectivity
+- Auto-installs missing Python dependencies
+- Validates environment variables
+- Starts worker with proper error handling
+- Graceful shutdown on Ctrl+C
 
 ## Troubleshooting
 
