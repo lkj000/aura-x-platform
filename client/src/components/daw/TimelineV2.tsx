@@ -10,8 +10,10 @@ import {
   VolumeX,
   Trash2,
   Copy,
-  Scissors
+  Scissors,
+  Activity
 } from 'lucide-react';
+import AutomationLaneRenderer from './AutomationLaneRenderer';
 import { trpc } from '@/lib/trpc';
 import { AudioEngine } from '@/services/AudioEngine';
 import type { Track, AudioClip } from '@/../../drizzle/schema';
@@ -43,6 +45,7 @@ export default function TimelineV2({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState(0);
+  const [automationEnabled, setAutomationEnabled] = useState<Record<number, boolean>>({});
   
   const timelineRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
@@ -395,6 +398,21 @@ export default function TimelineV2({
                       )}
                     </Button>
                     
+                    <Button
+                      variant={automationEnabled[track.id] ? "default" : "ghost"}
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => {
+                        setAutomationEnabled(prev => ({
+                          ...prev,
+                          [track.id]: !prev[track.id]
+                        }));
+                      }}
+                      title="Toggle Automation"
+                    >
+                      <Activity className="h-3 w-3" />
+                    </Button>
+                    
                     <div className="flex-1">
                       <Slider
                         value={[track.volume * 100]}
@@ -482,6 +500,18 @@ export default function TimelineV2({
                       </div>
                     ))}
                 </div>
+                
+                {/* Automation Lane */}
+                {automationEnabled[track.id] && (
+                  <AutomationLaneRenderer
+                    trackId={track.id}
+                    projectId={projectId}
+                    parameter="volume"
+                    zoom={zoom}
+                    timelineWidth={60 * zoom}
+                    pixelsPerSecond={zoom}
+                  />
+                )}
               </div>
             ))
           )}

@@ -524,12 +524,12 @@
 - [x] Write comprehensive automation tests (14 passing tests)
 
 ### Phase 10.1: Timeline UI Integration (Current)
-- [ ] Add automation lane toggle button to each Timeline track header
+- [x] Add automation lane toggle button to each Timeline track header
 - [x] Create AutomationLaneRenderer component for curve display
-- [ ] Integrate AutomationLaneRenderer into TimelineV2 component
-- [ ] Render automation curves synchronized with Timeline zoom/scroll
-- [ ] Connect automation editor to Timeline track selection
-- [ ] Add visual feedback for enabled/disabled lanes
+- [x] Integrate AutomationLaneRenderer into TimelineV2 component
+- [x] Render automation curves synchronized with Timeline zoom/scroll
+- [x] Connect automation editor to Timeline track selection
+- [x] Add visual feedback for enabled/disabled lanes (Activity icon button)
 - [x] Implement click-to-add automation points (in AutomationLaneRenderer)
 - [x] Implement drag-to-move automation points (in AutomationLaneRenderer)
 
