@@ -86,37 +86,37 @@ export default function GenerationHistory() {
     }
   };
 
-  const handleImportToDAW = (generation: any) => {
-    // Parse stems if available
-    let stems = [];
-    if (generation.stemsUrl) {
-      try {
-        stems = JSON.parse(generation.stemsUrl);
-      } catch (e) {
-        console.error("Failed to parse stems:", e);
-      }
-    }
-    
-    if (stems.length === 0 && !generation.resultUrl) {
+  const importToDAWMutation = trpc.aiStudio.importStemsToDAW.useMutation({
+    onSuccess: (data) => {
       toast({
-        title: "No audio available",
-        description: "Generate or separate stems first",
+        title: "Imported to DAW!",
+        description: `Created ${data.tracksCreated} tracks in project. Open Studio to view.`,
+      });
+      // Navigate to studio after short delay
+      setTimeout(() => {
+        window.location.href = '/studio';
+      }, 2000);
+    },
+    onError: (error) => {
+      toast({
+        title: "Import failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleImportToDAW = (generation: any) => {
+    if (!generation.stemsUrl || generation.stemsUrl === '[]') {
+      toast({
+        title: "No stems available",
+        description: "Please separate stems first",
         variant: "destructive",
       });
       return;
     }
     
-    // TODO: Implement actual DAW import via tRPC
-    toast({
-      title: "Import to DAW",
-      description: `Would import ${stems.length || 1} track(s) to timeline`,
-    });
-    
-    console.log("Importing to DAW:", {
-      generationId: generation.id,
-      audioUrl: generation.resultUrl,
-      stems,
-    });
+    importToDAWMutation.mutate({ generationId: generation.id });
   };
 
   const handleReplay = (item: any) => {

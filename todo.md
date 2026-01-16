@@ -815,3 +815,36 @@
 - [ ] Add webhook notifications for workflow completion
 - [ ] Update tRPC router to trigger Temporal workflows
 - [ ] Test long-running generation with retries
+
+## Phase 17: DAW Import, Temporal Integration, and Deployment Testing
+
+### Phase 17.1: DAW Import Logic Implementation (Complete)
+- [x] Create tRPC mutation for importing stems to timeline (aiStudio.importStemsToDAW)
+- [x] Implement track creation from stem URLs
+- [x] Add automatic track naming (drums, bass, vocals, other)
+- [x] Set proper track positioning and volume normalization (0.8 volume)
+- [x] Add color coding for different stem types (red/blue/purple/green)
+- [x] Auto-create project if no active project exists
+- [x] Update handleImportToDAW in GenerationHistory to call tRPC mutation
+- [x] Add success toast with navigation to Studio
+- [ ] Test stem import with multiple generations (requires Modal deployment)
+
+### Phase 17.2: Temporal Workflow Engine Integration
+- [ ] Create temporal_workflows.py with workflow definitions
+- [ ] Implement MusicGenerationWorkflow for async generation
+- [ ] Implement StemSeparationWorkflow for async stem processing
+- [ ] Add workflow activities (generate, separate, upload, notify)
+- [ ] Create Temporal client in server/temporalClient.ts
+- [ ] Update aiStudio router to use Temporal workflows
+- [ ] Add workflow status polling endpoint
+- [ ] Configure retry policies and error handling
+- [ ] Write workflow integration tests
+
+### Phase 17.3: Deployment Testing Guide
+- [ ] Create DEPLOYMENT_TESTING.md with complete test plan
+- [ ] Document Modal deployment verification steps
+- [ ] Add Temporal server setup instructions
+- [ ] Create end-to-end testing checklist
+- [ ] Document troubleshooting procedures
+- [ ] Add performance benchmarking guide
+- [ ] Write integration tests for complete workflow

@@ -1434,6 +1434,76 @@ export const appRouter = router({
         }
       }),
 
+    // Import stems to DAW timeline
+    importStemsToDAW: protectedProcedure
+      .input(z.object({ generationId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const generation = await db.getGenerationById(input.generationId);
+        
+        if (!generation) {
+          throw new Error('Generation not found');
+        }
+        
+        if (!generation.stemsUrl) {
+          throw new Error('No stems available for this generation');
+        }
+        
+        // Parse stems
+        let stems: Array<{ name: string; url: string }> = [];
+        try {
+          stems = typeof generation.stemsUrl === 'string' ? JSON.parse(generation.stemsUrl) : [];
+        } catch (e) {
+          throw new Error('Failed to parse stems data');
+        }
+        
+        // Get user's active project or create a new one
+        const userProjects = await db.getUserProjects(ctx.user.id);
+        let activeProject = userProjects.find(p => p.status === 'active');
+        
+        if (!activeProject) {
+          // Create a new project for imports
+          activeProject = await db.createProject({
+            userId: ctx.user.id,
+            name: `AI Generated - ${generation.title || 'Untitled'}`,
+            description: `Imported from AI Studio generation`,
+            tempo: generation.bpm || 112,
+            key: generation.key || 'C',
+            mode: generation.style || 'amapiano',
+          });
+        }
+        
+        // Create tracks for each stem
+        const createdTracks = [];
+        const stemColors: Record<string, string> = {
+          drums: '#ef4444',
+          bass: '#3b82f6',
+          vocals: '#8b5cf6',
+          other: '#10b981',
+        };
+        
+        for (const stem of stems) {
+          const track = await db.createTrack({
+            projectId: activeProject.id,
+            name: `${generation.title || 'Generation'} - ${stem.name}`,
+            type: 'audio',
+            audioUrl: stem.url,
+            duration: generation.duration || 30,
+            volume: 0.8,
+            pan: 0,
+            orderIndex: createdTracks.length,
+          });
+          
+          createdTracks.push(track);
+        }
+        
+        return {
+          success: true,
+          projectId: activeProject.id,
+          tracksCreated: createdTracks.length,
+          tracks: createdTracks,
+        };
+      }),
+
     // Check Modal job status and update generation
     checkJobStatus: protectedProcedure
       .input(z.object({ jobId: z.string(), generationId: z.number() }))
