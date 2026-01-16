@@ -829,15 +829,26 @@
 - [x] Add success toast with navigation to Studio
 - [ ] Test stem import with multiple generations (requires Modal deployment)
 
-### Phase 17.2: Temporal Workflow Engine Integration
+### Phase 17.2: Real-time Job Status Polling (Complete)
+- [x] Add useEffect polling hook in AIStudio.tsx
+- [x] Implement checkJobStatus query with 5-second interval
+- [x] Show progress percentage in generation UI
+- [x] Update generation status automatically when completed
+- [x] Add loading spinner with progress indicator
+- [x] Track activeJobId and activeGenerationId state
+- [x] Handle completion and failure states
+- [ ] Add "Cancel Generation" button for running jobs (future enhancement)
+- [ ] Test polling with multiple concurrent generations (requires Modal deployment)
+
+### Phase 17.3: Temporal Workflow Engine Integration
 - [ ] Create temporal_workflows.py with workflow definitions
 - [ ] Implement MusicGenerationWorkflow for async generation
 - [ ] Implement StemSeparationWorkflow for async stem processing
-- [ ] Add workflow activities (generate, separate, upload, notify)
-- [ ] Create Temporal client in server/temporalClient.ts
+- [ ] Add workflow retry logic and error handling
+- [ ] Create Temporal client in Node.js backend
 - [ ] Update aiStudio router to use Temporal workflows
-- [ ] Add workflow status polling endpoint
-- [ ] Configure retry policies and error handling
+- [ ] Add workflow status monitoring endpoint
+- [ ] Test long-running generation with retrieslicies and error handling
 - [ ] Write workflow integration tests
 
 ### Phase 17.3: Deployment Testing Guide

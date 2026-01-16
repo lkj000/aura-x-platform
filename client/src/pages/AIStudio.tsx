@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -67,9 +67,43 @@ export default function AIStudio() {
   const [selectedKey, setSelectedKey] = useState('F');
   const [vocalStyle, setVocalStyle] = useState('male');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
+  const [progress, setProgress] = useState(0);
 
   const generateMusic = trpc.aiStudio.generateMusic.useMutation();
   const generateLyrics = trpc.aiStudio.generateLyrics.useMutation();
+  const checkJobStatus = trpc.aiStudio.checkJobStatus.useQuery(
+    { jobId: activeJobId!, generationId: activeGenerationId! },
+    { 
+      enabled: !!activeJobId && !!activeGenerationId,
+      refetchInterval: 5000, // Poll every 5 seconds
+    }
+  );
+
+  // Update progress and handle completion
+  useEffect(() => {
+    if (checkJobStatus.data) {
+      const status = checkJobStatus.data.status;
+      
+      if (status === 'completed') {
+        setIsGenerating(false);
+        setActiveJobId(null);
+        setActiveGenerationId(null);
+        setProgress(100);
+        toast.success('Music generated successfully!');
+      } else if (status === 'failed') {
+        setIsGenerating(false);
+        setActiveJobId(null);
+        setActiveGenerationId(null);
+        setProgress(0);
+        toast.error('Generation failed');
+      } else if (status === 'processing') {
+        // Simulate progress (real progress would come from Modal)
+        setProgress(prev => Math.min(prev + 5, 90));
+      }
+    }
+  }, [checkJobStatus.data]);
 
   const handleGenerate = async () => {
     if (!prompt && !lyrics) {
@@ -92,11 +126,18 @@ export default function AIStudio() {
         mode,
       });
 
-      toast.success('Music generation started!');
-      // TODO: Poll for completion and display result
+      // Start polling for job status
+      if (result.jobId && result.generationId) {
+        setActiveJobId(result.jobId);
+        setActiveGenerationId(result.generationId);
+        setProgress(10);
+        toast.success('Music generation started! Polling for completion...');
+      } else {
+        toast.success('Music generation started!');
+        setIsGenerating(false);
+      }
     } catch (error: any) {
       toast.error(error.message || 'Generation failed');
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -209,6 +250,21 @@ export default function AIStudio() {
                   </Select>
                 </div>
 
+                {isGenerating && progress > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Generating...</span>
+                      <span className="font-medium">{progress}%</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt}
@@ -218,7 +274,7 @@ export default function AIStudio() {
                   {isGenerating ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Generating...
+                      Generating... {progress > 0 && `${progress}%`}
                     </>
                   ) : (
                     <>
@@ -384,6 +440,21 @@ export default function AIStudio() {
                   </CardContent>
                 </Card>
 
+                {isGenerating && progress > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Generating...</span>
+                      <span className="font-medium">{progress}%</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt}
@@ -393,7 +464,7 @@ export default function AIStudio() {
                   {isGenerating ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Generating...
+                      Generating... {progress > 0 && `${progress}%`}
                     </>
                   ) : (
                     <>
