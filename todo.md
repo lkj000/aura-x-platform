@@ -774,3 +774,44 @@
 - [ ] Show generation metadata (prompt, parameters, date)
 - [ ] Add delete and re-generate options
 - [ ] Test complete workflow: generate → separate → import to DAW
+
+## Phase 16: Modal Deployment, History Page & Temporal Integration (Current)
+
+### Phase 16.1: Modal Backend Deployment
+- [x] Create modal_app.py with MusicGen and Demucs
+- [x] Write MODAL_DEPLOYMENT.md with complete setup instructions
+- [x] Document S3 configuration and secrets setup
+- [x] Document testing procedures and troubleshooting
+- [ ] Install Modal CLI (`pip install modal`) - user action required
+- [ ] Configure Modal authentication (`modal token new`) - user action required
+- [ ] Set up S3 environment variables for Modal - user action required
+- [ ] Deploy Modal app (`modal deploy modal_app.py`) - user action required
+- [ ] Test music generation endpoint - requires deployment
+- [ ] Test stem separation endpoint - requires deployment
+- [ ] Update MODAL_BASE_URL in environment variables - after deployment
+- [ ] Verify end-to-end: generate → download → play → separate stems
+
+### Phase 16.2: Generation History Page (Complete)
+- [x] Update existing /history page with AI Studio integration
+- [x] Add audio player component with play/pause controls
+- [x] Implement waveform visualization using wavesurfer.js
+- [x] Add "Separate Stems" button for completed generations
+- [x] Add "Import to DAW" button to add stems to timeline
+- [x] Show generation metadata (prompt, parameters, date, status)
+- [x] Add favorite filtering (all/favorites/recent)
+- [x] Add delete options
+- [x] Connect to aiStudio.listGenerations tRPC endpoint
+- [ ] Implement job status polling in frontend (requires Modal deployment)
+- [ ] Test complete workflow: generate → separate → import to DAW (requires Modal deployment)
+
+### Phase 16.3: Temporal Workflow Engine Integration
+- [ ] Install Temporal Python SDK (`pip install temporalio`)
+- [ ] Set up Temporal server (local or Temporal Cloud)
+- [ ] Create Temporal workflow for music generation
+- [ ] Create Temporal activity for MusicGen API call
+- [ ] Create Temporal activity for Demucs stem separation
+- [ ] Add retry logic and error handling
+- [ ] Implement progress tracking via Temporal queries
+- [ ] Add webhook notifications for workflow completion
+- [ ] Update tRPC router to trigger Temporal workflows
+- [ ] Test long-running generation with retries

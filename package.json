@@ -78,6 +78,7 @@
     "tailwindcss-animate": "^1.0.7",
     "tone": "^15.1.22",
     "vaul": "^1.1.2",
+    "wavesurfer.js": "^7.12.1",
     "wouter": "^3.3.5",
     "zod": "^4.1.12"
   },

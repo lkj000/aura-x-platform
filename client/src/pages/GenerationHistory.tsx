@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import WaveSurfer from 'wavesurfer.js';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +27,8 @@ export default function GenerationHistory() {
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [filter, setFilter] = useState<'all' | 'favorites' | 'recent'>('all');
 
-  const historyQuery = trpc.generationHistory.list.useQuery({ limit: 100 });
+  const historyQuery = trpc.aiStudio.listGenerations.useQuery({ limit: 100 });
+  const separateStemsMutation = trpc.aiStudio.separateStems.useMutation();
   const toggleFavoriteMutation = trpc.generationHistory.toggleFavorite.useMutation();
   const deleteHistoryMutation = trpc.generationHistory.delete.useMutation();
   const utils = trpc.useUtils();
@@ -57,6 +59,63 @@ export default function GenerationHistory() {
     toast({
       title: 'Deleted',
       description: 'Generation removed from history',
+    });
+  };
+
+  const handleSeparateStems = async (generationId: number) => {
+    try {
+      toast({
+        title: "Separating stems...",
+        description: "This may take a few minutes",
+      });
+      
+      await separateStemsMutation.mutateAsync({ generationId });
+      
+      toast({
+        title: "Stems separated!",
+        description: "Stems are ready for download",
+      });
+      
+      utils.aiStudio.listGenerations.invalidate();
+    } catch (error) {
+      toast({
+        title: "Stem separation failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImportToDAW = (generation: any) => {
+    // Parse stems if available
+    let stems = [];
+    if (generation.stemsUrl) {
+      try {
+        stems = JSON.parse(generation.stemsUrl);
+      } catch (e) {
+        console.error("Failed to parse stems:", e);
+      }
+    }
+    
+    if (stems.length === 0 && !generation.resultUrl) {
+      toast({
+        title: "No audio available",
+        description: "Generate or separate stems first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // TODO: Implement actual DAW import via tRPC
+    toast({
+      title: "Import to DAW",
+      description: `Would import ${stems.length || 1} track(s) to timeline`,
+    });
+    
+    console.log("Importing to DAW:", {
+      generationId: generation.id,
+      audioUrl: generation.resultUrl,
+      stems,
     });
   };
 
@@ -221,10 +280,10 @@ export default function GenerationHistory() {
 
                   {/* Parameters */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                    {item.subgenre && (
+                    {item.style && (
                       <div>
                         <p className="text-muted-foreground">Style</p>
-                        <p className="font-medium">{item.subgenre}</p>
+                        <p className="font-medium">{item.style}</p>
                       </div>
                     )}
                     {item.mood && (
@@ -233,24 +292,33 @@ export default function GenerationHistory() {
                         <p className="font-medium">{item.mood}</p>
                       </div>
                     )}
-                    <div>
-                      <p className="text-muted-foreground">Seed</p>
-                      <p className="font-mono text-xs">{item.seed}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Temperature</p>
-                      <p className="font-medium">{item.temperature}</p>
-                    </div>
+                    {item.bpm && (
+                      <div>
+                        <p className="text-muted-foreground">BPM</p>
+                        <p className="font-medium">{item.bpm}</p>
+                      </div>
+                    )}
+                    {item.key && (
+                      <div>
+                        <p className="text-muted-foreground">Key</p>
+                        <p className="font-medium">{item.key}</p>
+                      </div>
+                    )}
                   </div>
 
+                  {/* Waveform Player */}
+                  {item.status === 'completed' && item.resultUrl && (
+                    <WaveformPlayer audioUrl={item.resultUrl} />
+                  )}
+
                   {/* Audio Player & Actions */}
-                  {item.status === 'completed' && item.audioUrl && (
+                  {item.status === 'completed' && item.resultUrl && (
                     <div className="flex items-center gap-2 pt-2 border-t">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const audio = new Audio(item.audioUrl!);
+                          const audio = new Audio(item.resultUrl!);
                           if (playingId === item.id) {
                             audio.pause();
                             setPlayingId(null);
@@ -290,11 +358,33 @@ export default function GenerationHistory() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDownload(item.audioUrl!, `generation-${item.id}.mp3`)}
+                        onClick={() => handleDownload(item.resultUrl!, `generation-${item.id}.mp3`)}
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Download
                       </Button>
+                      
+                      {!item.stemsUrl && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSeparateStems(item.id)}
+                        >
+                          <Music className="h-4 w-4 mr-2" />
+                          Separate Stems
+                        </Button>
+                      )}
+                      
+                      {(item.stemsUrl && typeof item.stemsUrl === 'string' && item.stemsUrl !== '[]') ? (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleImportToDAW(item)}
+                        >
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Import to DAW
+                        </Button>
+                      ) : null}
                     </div>
                   )}
                 </CardContent>
@@ -333,9 +423,9 @@ export default function GenerationHistory() {
                 <div>
                   <p className="text-3xl font-bold">
                     {Math.round(
-                      historyQuery.data
+                      (historyQuery.data
                         .filter(i => i.duration)
-                        .reduce((sum, i) => sum + (i.duration || 0), 0) / 60
+                        .reduce((sum, i) => sum + (Number(i.duration) || 0), 0) / 60)
                     )}m
                   </p>
                   <p className="text-sm text-muted-foreground">Total Duration</p>
@@ -346,5 +436,72 @@ export default function GenerationHistory() {
         )}
       </div>
     </Layout>
+  );
+}
+
+
+// Waveform Player Component
+function WaveformPlayer({ audioUrl }: { audioUrl: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const waveformRef = useRef<HTMLDivElement>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
+  
+  useEffect(() => {
+    if (!waveformRef.current || !audioUrl) return;
+    
+    // Initialize WaveSurfer
+    const wavesurfer = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: '#9333ea',
+      progressColor: '#7c3aed',
+      cursorColor: '#a855f7',
+      barWidth: 2,
+      barRadius: 3,
+      cursorWidth: 1,
+      height: 60,
+      barGap: 2,
+    });
+    
+    wavesurfer.load(audioUrl);
+    
+    wavesurfer.on('finish', () => {
+      setIsPlaying(false);
+    });
+    
+    wavesurferRef.current = wavesurfer;
+    
+    return () => {
+      wavesurfer.destroy();
+    };
+  }, [audioUrl]);
+  
+  const togglePlayback = () => {
+    if (!wavesurferRef.current) return;
+    
+    if (isPlaying) {
+      wavesurferRef.current.pause();
+    } else {
+      wavesurferRef.current.play();
+    }
+    
+    setIsPlaying(!isPlaying);
+  };
+  
+  return (
+    <div className="space-y-2">
+      <div ref={waveformRef} className="w-full bg-muted rounded-lg" />
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={togglePlayback}
+      >
+        {isPlaying ? (
+          <Pause className="h-4 w-4 mr-2" />
+        ) : (
+          <Play className="h-4 w-4 mr-2" />
+        )}
+        {isPlaying ? 'Pause' : 'Play Waveform'}
+      </Button>
+    </div>
   );
 }
