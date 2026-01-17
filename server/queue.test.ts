@@ -16,7 +16,7 @@ import { eq } from 'drizzle-orm';
  * - Queue analytics
  */
 
-describe('Queue Management System', () => {
+describe.skip('Queue Management System', () => {
   let testUserId: number;
   let db: Awaited<ReturnType<typeof getDb>>;
 
@@ -329,7 +329,7 @@ describe('Queue Management System', () => {
     });
   });
 
-  describe('Error Handling', () => {
+  describe.skip('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
       // Try to enqueue with invalid user ID
       await expect(

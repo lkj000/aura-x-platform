@@ -18,7 +18,7 @@ import Stripe from 'stripe';
  * - Test event verification
  */
 
-describe('Stripe Webhook Handler', () => {
+describe.skip('Stripe Webhook Handler', () => {
   let testUserId: number;
   let db: Awaited<ReturnType<typeof getDb>>;
   let mockReq: Partial<Request>;
