@@ -1154,3 +1154,60 @@
 - [ ] Update AI Studio with pattern selection UI
 - [ ] Add authenticity scoring to generation results
 - [ ] Save final checkpoint
+
+
+## Phase 25: South African Linguistic & Cultural Expansion
+
+### Phase 25.1: South African Linguistic Alignment System
+- [ ] Design multi-language phonetic mapping system
+- [ ] Implement Zulu linguistic patterns and phonetics
+- [ ] Implement Xhosa linguistic patterns (including clicks)
+- [ ] Implement Tsonga linguistic patterns
+- [ ] Implement Tswana linguistic patterns
+- [ ] Implement Sotho linguistic patterns (North & South)
+- [ ] Implement English (South African accent/dialect)
+- [ ] Add Afrikaans linguistic patterns
+- [ ] Add Venda linguistic patterns
+- [ ] Add Ndebele linguistic patterns
+- [ ] Add Swazi linguistic patterns
+- [ ] Create linguistic authenticity scoring
+- [ ] Build language-to-rhythm mapping engine
+
+### Phase 25.2: Regional Swing Variations Module
+- [ ] Implement Gauteng Swing (58.3% offset)
+- [ ] Implement KZN/Durban Swing variation
+- [ ] Implement Cape Town Swing variation
+- [ ] Implement Pretoria Swing variation
+- [ ] Implement Limpopo Swing variation
+- [ ] Add swing detection algorithm
+- [ ] Create regional swing authenticity scoring
+- [ ] Build swing parameter generator
+
+### Phase 25.3: Complete Amapiano Gasp Taxonomy
+- [ ] Document all Gasp variations (Beat 1, Beat 3, etc.)
+- [ ] Implement Classic Gasp (Beat 1 silence)
+- [ ] Implement Double Gasp (Beat 1 + Beat 3)
+- [ ] Implement Half-Bar Gasp variations
+- [ ] Implement Full-Bar Gasp (entire bar silence)
+- [ ] Implement Stutter Gasp (rapid on/off pattern)
+- [ ] Implement Reverse Gasp (silence everywhere except beat 1)
+- [ ] Add Gasp intensity parameter (partial vs full silence)
+- [ ] Create Gasp taxonomy scoring system
+
+### Phase 25.4: Integration & Workflow
+- [ ] Create linguistic_alignment.py module
+- [ ] Create regional_swing.py module
+- [ ] Expand authenticity_scorer.py with new metrics
+- [ ] Add language selection to AI Studio UI
+- [ ] Add regional swing selection to AI Studio UI
+- [ ] Add Gasp variation selection to AI Studio UI
+- [ ] Create tRPC endpoints for all new modules
+- [ ] Update generation workflow with linguistic/swing parameters
+
+### Phase 25.5: Testing & Delivery
+- [ ] Test all linguistic patterns
+- [ ] Test all regional swing variations
+- [ ] Test all Gasp variations
+- [ ] Verify authenticity scoring with new metrics
+- [ ] Create comprehensive documentation
+- [ ] Save final checkpoint
