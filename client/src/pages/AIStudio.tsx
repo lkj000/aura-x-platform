@@ -56,6 +56,54 @@ const VOCAL_STYLES = [
   { value: 'choir', label: 'Choir' },
 ];
 
+const SA_LANGUAGES = [
+  { value: 'zulu', label: 'Zulu (55% swing)' },
+  { value: 'xhosa', label: 'Xhosa (52% swing, clicks)' },
+  { value: 'tsonga', label: 'Tsonga (58% swing)' },
+  { value: 'tswana', label: 'Tswana (54% swing)' },
+  { value: 'sotho_north', label: 'Sotho North (53% swing)' },
+  { value: 'sotho_south', label: 'Sotho South (53% swing)' },
+  { value: 'english_sa', label: 'English SA (50% swing)' },
+  { value: 'afrikaans', label: 'Afrikaans (48% swing)' },
+  { value: 'venda', label: 'Venda (56% swing, tonal)' },
+  { value: 'ndebele', label: 'Ndebele (54% swing, clicks)' },
+  { value: 'swazi', label: 'Swazi (55% swing)' },
+];
+
+const SA_REGIONS = [
+  { value: 'gauteng_jhb', label: 'Gauteng JHB (58.3% - THE ORIGINAL)' },
+  { value: 'gauteng_pretoria', label: 'Gauteng Pretoria (57%)' },
+  { value: 'kzn_durban', label: 'KZN Durban (52% - Gqom)' },
+  { value: 'western_cape', label: 'Western Cape (50% - House)' },
+  { value: 'eastern_cape', label: 'Eastern Cape (55.5%)' },
+  { value: 'free_state', label: 'Free State (56%)' },
+  { value: 'limpopo', label: 'Limpopo (60% - Traditional)' },
+  { value: 'mpumalanga', label: 'Mpumalanga (59%)' },
+  { value: 'north_west', label: 'North West (56.5%)' },
+  { value: 'northern_cape', label: 'Northern Cape (54%)' },
+];
+
+const GASP_TYPES = [
+  { value: 'classic', label: 'Classic Gasp (Beat 1)' },
+  { value: 'double', label: 'Double Gasp (Sgija)' },
+  { value: 'half_bar', label: 'Half-Bar Gasp (Soulful)' },
+  { value: 'full_bar', label: 'Full-Bar Gasp (Experimental)' },
+  { value: 'stutter', label: 'Stutter Gasp (Glitchy)' },
+  { value: 'reverse', label: 'Reverse Gasp (Minimal)' },
+  { value: 'progressive', label: 'Progressive Gasp (Private School)' },
+  { value: 'selective', label: 'Selective Gasp (Jazz)' },
+  { value: 'echo', label: 'Echo Gasp (Spiritual)' },
+  { value: 'buildup', label: 'Build-Up Gasp (Festival)' },
+];
+
+const GASP_INTENSITIES = [
+  { value: 'full', label: 'Full (100%)' },
+  { value: 'heavy', label: 'Heavy (75%)' },
+  { value: 'moderate', label: 'Moderate (50%)' },
+  { value: 'light', label: 'Light (25%)' },
+  { value: 'subtle', label: 'Subtle (10%)' },
+];
+
 export default function AIStudio() {
   const [mode, setMode] = useState<'simple' | 'custom'>('simple');
   const [prompt, setPrompt] = useState('');
@@ -66,6 +114,12 @@ export default function AIStudio() {
   const [bpm, setBpm] = useState([112]);
   const [selectedKey, setSelectedKey] = useState('F');
   const [vocalStyle, setVocalStyle] = useState('male');
+  const [selectedLanguage, setSelectedLanguage] = useState('zulu');
+  const [selectedRegion, setSelectedRegion] = useState('gauteng_jhb');
+  const [selectedGaspType, setSelectedGaspType] = useState('classic');
+  const [gaspIntensity, setGaspIntensity] = useState('moderate');
+  const [authenticityScore, setAuthenticityScore] = useState<number | null>(null);
+  const [authenticityRecommendations, setAuthenticityRecommendations] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
@@ -472,6 +526,98 @@ export default function AIStudio() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* Cultural Authenticity Controls */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Cultural Authenticity</CardTitle>
+                    <CardDescription>
+                      Fine-tune linguistic, regional, and rhythmic characteristics
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <Label htmlFor="language">Language Influence</Label>
+                      <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                        <SelectTrigger id="language" className="mt-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SA_LANGUAGES.map(lang => (
+                            <SelectItem key={lang.value} value={lang.value}>
+                              {lang.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="region">Regional Swing</Label>
+                      <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+                        <SelectTrigger id="region" className="mt-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SA_REGIONS.map(region => (
+                            <SelectItem key={region.value} value={region.value}>
+                              {region.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="gasp">Gasp Type</Label>
+                      <Select value={selectedGaspType} onValueChange={setSelectedGaspType}>
+                        <SelectTrigger id="gasp" className="mt-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GASP_TYPES.map(gasp => (
+                            <SelectItem key={gasp.value} value={gasp.value}>
+                              {gasp.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="intensity">Gasp Intensity</Label>
+                      <Select value={gaspIntensity} onValueChange={setGaspIntensity}>
+                        <SelectTrigger id="intensity" className="mt-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GASP_INTENSITIES.map(intensity => (
+                            <SelectItem key={intensity.value} value={intensity.value}>
+                              {intensity.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {authenticityScore !== null && (
+                      <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Authenticity Score</span>
+                          <span className="text-2xl font-bold text-primary">{authenticityScore.toFixed(1)}%</span>
+                        </div>
+                        {authenticityRecommendations.length > 0 && (
+                          <div className="mt-3 space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">Recommendations:</p>
+                            {authenticityRecommendations.map((rec, i) => (
+                              <p key={i} className="text-xs text-muted-foreground">• {rec}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 

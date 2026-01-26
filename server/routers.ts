@@ -14,6 +14,7 @@ import { getDb } from './db';
 import { executeMusicGenerationWorkflow, executeStemSeparationWorkflow, queryWorkflowStatus } from './temporalClient';
 import Stripe from 'stripe';
 import { invokeLLM } from './_core/llm';
+import { culturalRouter } from './routers/cultural';
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -1665,8 +1666,9 @@ export const appRouter = router({
         const queueDb = await import('./queueDb');
         await queueDb.cancelQueuedGeneration(input.queueId);
         return { success: true };
-      }),
+       }),
   }),
+  // Cultural Authenticity router - South African linguistic & regional features
+  cultural: culturalRouter,
 });
-
 export type AppRouter = typeof appRouter;
