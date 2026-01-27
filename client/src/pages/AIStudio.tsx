@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import QuickTip, { type Tip } from '@/components/QuickTip';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -102,6 +103,29 @@ const GASP_INTENSITIES = [
   { value: 'moderate', label: 'Moderate (50%)' },
   { value: 'light', label: 'Light (25%)' },
   { value: 'subtle', label: 'Subtle (10%)' },
+];
+
+const AI_STUDIO_TIPS: Tip[] = [
+  {
+    id: 'welcome',
+    title: 'Welcome to AI Studio!',
+    description: 'Generate professional Amapiano tracks with our AI-powered music engine. Start with Simple Mode for quick generations, or switch to Custom Mode for full creative control.',
+  },
+  {
+    id: 'simple-mode',
+    title: 'Simple Mode',
+    description: 'Describe your track in natural language (e.g., "uplifting Amapiano with soulful piano and smooth bassline"). Our AI will handle the rest!',
+  },
+  {
+    id: 'cultural-authenticity',
+    title: 'Cultural Authenticity',
+    description: 'Use Custom Mode to access our unique South African cultural authenticity system with 11 languages, 10 regional swing profiles, and 10 Amapiano gasp variations.',
+  },
+  {
+    id: 'stem-separation',
+    title: 'Stem Separation & DAW Import',
+    description: 'After generation, separate your track into stems (drums, bass, vocals, other) and import directly into the DAW for further editing.',
+  },
 ];
 
 export default function AIStudio() {
@@ -246,8 +270,15 @@ export default function AIStudio() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <>
+      <QuickTip 
+        tips={AI_STUDIO_TIPS} 
+        storageKey="ai-studio-tips-v1" 
+        autoShow={true} 
+        sequence={true} 
+      />
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -690,7 +721,8 @@ export default function AIStudio() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

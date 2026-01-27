@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import WaveSurfer from 'wavesurfer.js';
+import React, { useState, useEffect, useRef } from 'react';
+import AudioVisualizer from '@/components/AudioVisualizer';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -306,9 +306,15 @@ export default function GenerationHistory() {
                     )}
                   </div>
 
-                  {/* Waveform Player */}
+                  {/* Audio Visualizer */}
                   {item.status === 'completed' && item.resultUrl && (
-                    <WaveformPlayer audioUrl={item.resultUrl} />
+                    <AudioVisualizer 
+                      audioUrl={item.resultUrl} 
+                      isPlaying={playingId === item.id}
+                      showMetrics={true}
+                      bands={16}
+                      height={150}
+                    />
                   )}
 
                   {/* Audio Player & Actions */}
@@ -439,69 +445,3 @@ export default function GenerationHistory() {
   );
 }
 
-
-// Waveform Player Component
-function WaveformPlayer({ audioUrl }: { audioUrl: string }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const waveformRef = useRef<HTMLDivElement>(null);
-  const wavesurferRef = useRef<WaveSurfer | null>(null);
-  
-  useEffect(() => {
-    if (!waveformRef.current || !audioUrl) return;
-    
-    // Initialize WaveSurfer
-    const wavesurfer = WaveSurfer.create({
-      container: waveformRef.current,
-      waveColor: '#9333ea',
-      progressColor: '#7c3aed',
-      cursorColor: '#a855f7',
-      barWidth: 2,
-      barRadius: 3,
-      cursorWidth: 1,
-      height: 60,
-      barGap: 2,
-    });
-    
-    wavesurfer.load(audioUrl);
-    
-    wavesurfer.on('finish', () => {
-      setIsPlaying(false);
-    });
-    
-    wavesurferRef.current = wavesurfer;
-    
-    return () => {
-      wavesurfer.destroy();
-    };
-  }, [audioUrl]);
-  
-  const togglePlayback = () => {
-    if (!wavesurferRef.current) return;
-    
-    if (isPlaying) {
-      wavesurferRef.current.pause();
-    } else {
-      wavesurferRef.current.play();
-    }
-    
-    setIsPlaying(!isPlaying);
-  };
-  
-  return (
-    <div className="space-y-2">
-      <div ref={waveformRef} className="w-full bg-muted rounded-lg" />
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={togglePlayback}
-      >
-        {isPlaying ? (
-          <Pause className="h-4 w-4 mr-2" />
-        ) : (
-          <Play className="h-4 w-4 mr-2" />
-        )}
-        {isPlaying ? 'Pause' : 'Play Waveform'}
-      </Button>
-    </div>
-  );
-}
