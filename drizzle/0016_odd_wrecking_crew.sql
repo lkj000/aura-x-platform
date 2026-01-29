@@ -1,0 +1,60 @@
+CREATE TABLE `community_feedback` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`generationId` int NOT NULL,
+	`culturalAuthenticityRating` int,
+	`rhythmicSwingRating` int,
+	`linguisticAlignmentRating` int,
+	`productionQualityRating` int,
+	`creativityRating` int,
+	`linguisticAlignmentScore` decimal(5,2),
+	`swingAccuracyScore` decimal(5,2),
+	`gaspTimingScore` decimal(5,2),
+	`modelVersion` varchar(100) NOT NULL,
+	`generationParams` json,
+	`culturalParams` json,
+	`isFavorite` boolean NOT NULL DEFAULT false,
+	`isGoldStandard` boolean NOT NULL DEFAULT false,
+	`textFeedback` text,
+	`feedbackTags` json,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `community_feedback_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `model_performance_metrics` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`modelVersion` varchar(100) NOT NULL,
+	`avgCulturalAuthenticityRating` decimal(3,2),
+	`avgRhythmicSwingRating` decimal(3,2),
+	`avgProductionQualityRating` decimal(3,2),
+	`avgCreativityRating` decimal(3,2),
+	`totalGenerations` int NOT NULL DEFAULT 0,
+	`totalFeedbackCount` int NOT NULL DEFAULT 0,
+	`favoriteRate` decimal(5,2),
+	`culturalDriftScore` decimal(5,2),
+	`performanceTrend` varchar(50),
+	`metricDate` timestamp NOT NULL,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `model_performance_metrics_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `model_training_datasets` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`name` varchar(255) NOT NULL,
+	`description` text,
+	`modelVersion` varchar(100) NOT NULL,
+	`minCulturalRating` int NOT NULL DEFAULT 4,
+	`minSwingRating` int NOT NULL DEFAULT 4,
+	`culturalRegion` varchar(100),
+	`language` varchar(50),
+	`totalSamples` int NOT NULL DEFAULT 0,
+	`avgCulturalScore` decimal(5,2),
+	`avgSwingScore` decimal(5,2),
+	`status` enum('draft','ready','training','completed','failed') NOT NULL DEFAULT 'draft',
+	`trainingStartedAt` timestamp,
+	`trainingCompletedAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `model_training_datasets_id` PRIMARY KEY(`id`)
+);

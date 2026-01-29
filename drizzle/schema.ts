@@ -532,3 +532,108 @@ export const userQueueStats = mysqlTable("user_queue_stats", {
 
 export type UserQueueStats = typeof userQueueStats.$inferSelect;
 export type InsertUserQueueStats = typeof userQueueStats.$inferInsert;
+
+/**
+ * Community Feedback table - Captures user ratings and feedback for AI-native learning loop
+ * This is the "Ground Truth" data source for continuous model improvement
+ */
+export const communityFeedback = mysqlTable("community_feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to users
+  generationId: int("generationId").notNull(), // Foreign key to generations
+  
+  // Subjective Cultural Ratings (1-5 scale)
+  culturalAuthenticityRating: int("culturalAuthenticityRating"), // How "Amapiano" does it feel?
+  rhythmicSwingRating: int("rhythmicSwingRating"), // Does the swing feel right for the region?
+  linguisticAlignmentRating: int("linguisticAlignmentRating"), // For vocal tracks: language authenticity
+  productionQualityRating: int("productionQualityRating"), // Overall production quality
+  creativityRating: int("creativityRating"), // How creative/unique is it?
+  
+  // Automated scores for comparison (computed by SI Neural Core)
+  linguisticAlignmentScore: decimal("linguisticAlignmentScore", { precision: 5, scale: 2 }), // 0-100
+  swingAccuracyScore: decimal("swingAccuracyScore", { precision: 5, scale: 2 }), // 0-100
+  gaspTimingScore: decimal("gaspTimingScore", { precision: 5, scale: 2 }), // 0-100
+  
+  // Model Metadata for Retraining (critical for MLOps)
+  modelVersion: varchar("modelVersion", { length: 100 }).notNull(), // e.g., 'si-v2.1-gauteng'
+  generationParams: json("generationParams"), // Temperature, Top_P, seed, etc.
+  culturalParams: json("culturalParams"), // Language, region, gasp type, intensity
+  
+  // Feedback Details
+  isFavorite: boolean("isFavorite").default(false).notNull(),
+  isGoldStandard: boolean("isGoldStandard").default(false).notNull(), // Marked as high-quality training data
+  textFeedback: text("textFeedback"), // Optional written feedback
+  feedbackTags: json("feedbackTags"), // Array of tags: ["authentic", "too-fast", "perfect-swing"]
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CommunityFeedback = typeof communityFeedback.$inferSelect;
+export type InsertCommunityFeedback = typeof communityFeedback.$inferInsert;
+
+/**
+ * Model Training Datasets table - Curated datasets for SI Neural Core retraining
+ * Aggregates high-quality community feedback into training batches
+ */
+export const modelTrainingDatasets = mysqlTable("model_training_datasets", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(), // e.g., "Gauteng Gold Standard v1"
+  description: text("description"),
+  modelVersion: varchar("modelVersion", { length: 100 }).notNull(), // Target model version
+  
+  // Dataset Criteria
+  minCulturalRating: int("minCulturalRating").default(4).notNull(), // Only include ratings >= 4
+  minSwingRating: int("minSwingRating").default(4).notNull(),
+  culturalRegion: varchar("culturalRegion", { length: 100 }), // Filter by region
+  language: varchar("language", { length: 50 }), // Filter by language
+  
+  // Dataset Stats
+  totalSamples: int("totalSamples").default(0).notNull(),
+  avgCulturalScore: decimal("avgCulturalScore", { precision: 5, scale: 2 }),
+  avgSwingScore: decimal("avgSwingScore", { precision: 5, scale: 2 }),
+  
+  // Training Status
+  status: mysqlEnum("status", ["draft", "ready", "training", "completed", "failed"]).default("draft").notNull(),
+  trainingStartedAt: timestamp("trainingStartedAt"),
+  trainingCompletedAt: timestamp("trainingCompletedAt"),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ModelTrainingDataset = typeof modelTrainingDatasets.$inferSelect;
+export type InsertModelTrainingDataset = typeof modelTrainingDatasets.$inferInsert;
+
+/**
+ * Model Performance Metrics table - Tracks model performance over time (MLOps monitoring)
+ * Enables detection of model drift and performance degradation
+ */
+export const modelPerformanceMetrics = mysqlTable("model_performance_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  modelVersion: varchar("modelVersion", { length: 100 }).notNull(),
+  
+  // Aggregate Performance Metrics (computed daily)
+  avgCulturalAuthenticityRating: decimal("avgCulturalAuthenticityRating", { precision: 3, scale: 2 }),
+  avgRhythmicSwingRating: decimal("avgRhythmicSwingRating", { precision: 3, scale: 2 }),
+  avgProductionQualityRating: decimal("avgProductionQualityRating", { precision: 3, scale: 2 }),
+  avgCreativityRating: decimal("avgCreativityRating", { precision: 3, scale: 2 }),
+  
+  // Usage Stats
+  totalGenerations: int("totalGenerations").default(0).notNull(),
+  totalFeedbackCount: int("totalFeedbackCount").default(0).notNull(),
+  favoriteRate: decimal("favoriteRate", { precision: 5, scale: 2 }), // Percentage of generations marked as favorite
+  
+  // Model Drift Detection
+  culturalDriftScore: decimal("culturalDriftScore", { precision: 5, scale: 2 }), // Deviation from baseline
+  performanceTrend: varchar("performanceTrend", { length: 50 }), // "improving", "stable", "degrading"
+  
+  // Time Window
+  metricDate: timestamp("metricDate").notNull(), // Date for this metric snapshot
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ModelPerformanceMetric = typeof modelPerformanceMetrics.$inferSelect;
+export type InsertModelPerformanceMetric = typeof modelPerformanceMetrics.$inferInsert;
