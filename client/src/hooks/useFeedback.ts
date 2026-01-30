@@ -49,10 +49,10 @@ export function useFeedback() {
   const utils = trpc.useUtils();
   
   // Submit feedback mutation
-  const submitFeedbackMutation = trpc.communityFeedback.submit.useMutation({
+  const submitFeedbackMutation = trpc.communityFeedback.submitFeedback.useMutation({
     onSuccess: () => {
       // Invalidate relevant queries to refresh UI
-      utils.communityFeedback.getByGeneration.invalidate();
+      utils.communityFeedback.getFeedback.invalidate();
       utils.communityFeedback.getStats.invalidate();
       utils.aiStudio.listGenerations.invalidate();
       
@@ -60,18 +60,10 @@ export function useFeedback() {
         description: 'Your input helps improve the AI\'s cultural authenticity.'
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error('Failed to submit feedback', {
         description: error.message
       });
-    }
-  });
-  
-  // Toggle favorite mutation
-  const toggleFavoriteMutation = trpc.communityFeedback.toggleFavorite.useMutation({
-    onSuccess: () => {
-      utils.communityFeedback.getByGeneration.invalidate();
-      utils.aiStudio.listGenerations.invalidate();
     }
   });
   
@@ -79,22 +71,22 @@ export function useFeedback() {
   const submitFeedback = async (input: FeedbackInput) => {
     setIsSubmitting(true);
     try {
-      await submitFeedbackMutation.mutateAsync(input);
+      // Ensure required ratings are present
+      if (!input.culturalAuthenticityRating || !input.rhythmicSwingRating) {
+        throw new Error('Cultural authenticity and rhythmic swing ratings are required');
+      }
+      
+      await submitFeedbackMutation.mutateAsync({
+        ...input,
+        culturalAuthenticityRating: input.culturalAuthenticityRating,
+        rhythmicSwingRating: input.rhythmicSwingRating,
+        isFavorite: input.isFavorite || false,
+      });
       return { success: true };
     } catch (error) {
       return { success: false, error };
     } finally {
       setIsSubmitting(false);
-    }
-  };
-  
-  // Toggle favorite function
-  const toggleFavorite = async (generationId: number) => {
-    try {
-      await toggleFavoriteMutation.mutateAsync({ generationId });
-      return { success: true };
-    } catch (error) {
-      return { success: false, error };
     }
   };
   
@@ -110,7 +102,6 @@ export function useFeedback() {
   
   return {
     submitFeedback,
-    toggleFavorite,
     quickRate,
     isSubmitting,
   };
@@ -122,10 +113,10 @@ export function useFeedback() {
  * Retrieves aggregated feedback statistics for a generation or model version.
  * Used for displaying community consensus and model performance metrics.
  */
-export function useFeedbackStats(generationId?: number, modelVersion?: string) {
+export function useFeedbackStats(generationId?: number) {
   const statsQuery = trpc.communityFeedback.getStats.useQuery(
-    { generationId, modelVersion },
-    { enabled: !!(generationId || modelVersion) }
+    { generationId: generationId! },
+    { enabled: !!generationId }
   );
   
   return {
@@ -142,7 +133,7 @@ export function useFeedbackStats(generationId?: number, modelVersion?: string) {
  * Used for displaying community reviews and detailed feedback.
  */
 export function useGenerationFeedback(generationId: number) {
-  const feedbackQuery = trpc.communityFeedback.getByGeneration.useQuery(
+  const feedbackQuery = trpc.communityFeedback.getFeedback.useQuery(
     { generationId },
     { enabled: !!generationId }
   );
@@ -160,10 +151,9 @@ export function useGenerationFeedback(generationId: number) {
  * Retrieves model performance metrics over time for MLOps monitoring.
  * Used for detecting model drift and performance degradation.
  */
-export function useModelPerformance(modelVersion: string, days: number = 30) {
-  const metricsQuery = trpc.communityFeedback.getModelPerformance.useQuery(
-    { modelVersion, days },
-    { enabled: !!modelVersion }
+export function useModelPerformance(timeRange: '7d' | '30d' | '90d' = '30d') {
+  const metricsQuery = trpc.communityFeedback.getModelPerformanceMetrics.useQuery(
+    { timeRange }
   );
   
   return {

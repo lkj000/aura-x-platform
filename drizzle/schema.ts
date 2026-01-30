@@ -577,6 +577,29 @@ export type InsertCommunityFeedback = typeof communityFeedback.$inferInsert;
  * Model Training Datasets table - Curated datasets for SI Neural Core retraining
  * Aggregates high-quality community feedback into training batches
  */
+/**
+ * Gold Standard Generations - Individual generations that qualify for training
+ */
+export const goldStandardGenerations = mysqlTable("gold_standard_generations", {
+  id: int("id").autoincrement().primaryKey(),
+  generationId: int("generationId").notNull(), // FK to generation_history
+  avgCulturalRating: decimal("avgCulturalRating", { precision: 3, scale: 2 }).notNull(),
+  avgSwingRating: decimal("avgSwingRating", { precision: 3, scale: 2 }).notNull(),
+  avgLinguisticRating: decimal("avgLinguisticRating", { precision: 3, scale: 2 }),
+  avgProductionRating: decimal("avgProductionRating", { precision: 3, scale: 2 }),
+  feedbackCount: int("feedbackCount").notNull(),
+  favoriteCount: int("favoriteCount").default(0).notNull(),
+  isGoldStandard: boolean("isGoldStandard").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GoldStandardGeneration = typeof goldStandardGenerations.$inferSelect;
+export type InsertGoldStandardGeneration = typeof goldStandardGenerations.$inferInsert;
+
+/**
+ * Model Training Datasets - Named collections for model retraining
+ */
 export const modelTrainingDatasets = mysqlTable("model_training_datasets", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(), // e.g., "Gauteng Gold Standard v1"

@@ -9,6 +9,7 @@ import {
   marketplaceSamplePacks, marketplacePurchases, marketplaceReviews, marketplaceDownloads,
   marketplaceBundles, marketplaceBundlePacks,
   producerProfiles, followers, activityFeed,
+  communityFeedback, goldStandardGenerations, modelTrainingDatasets, modelPerformanceMetrics,
   type ProducerProfile, type InsertProducerProfile,
   type Follower, type InsertFollower,
   type ActivityFeedItem, type InsertActivityFeedItem,

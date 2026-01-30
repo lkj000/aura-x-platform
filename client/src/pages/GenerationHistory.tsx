@@ -21,6 +21,80 @@ import {
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { StarRating } from '@/components/StarRating';
+import { useFeedback, useFeedbackStats } from '@/hooks/useFeedback';
+import { Award } from 'lucide-react';
+
+// Rating Widget Component
+function GenerationRatingWidget({ generationId }: { generationId: number }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [rating, setRating] = useState(0);
+  const { submitFeedback, isSubmitting, quickRate } = useFeedback();
+  const { stats } = useFeedbackStats(generationId);
+
+  const handleQuickRate = async (value: number) => {
+    setRating(value);
+    await quickRate(generationId, value);
+  };
+
+  const isGoldStandard = stats && stats.avgCulturalRating >= 4 && stats.avgSwingRating >= 4;
+
+  return (
+    <div className="border-t pt-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium">Rate This Pattern:</span>
+          <StarRating
+            value={rating}
+            onChange={handleQuickRate}
+            size="sm"
+          />
+          {isGoldStandard && (
+            <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50 text-xs">
+              <Award className="h-3 w-3 mr-1" />
+              Gold Standard
+            </Badge>
+          )}
+        </div>
+        {stats && stats.totalFeedbackCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs"
+          >
+            {stats.totalFeedbackCount} {stats.totalFeedbackCount === 1 ? 'rating' : 'ratings'}
+          </Button>
+        )}
+      </div>
+
+      {isExpanded && stats && (
+        <div className="bg-muted/30 rounded-lg p-3 space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Cultural Authenticity</span>
+            <StarRating
+              value={Math.round(stats.avgCulturalRating)}
+              readonly
+              size="sm"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Rhythmic Swing</span>
+            <StarRating
+              value={Math.round(stats.avgSwingRating)}
+              readonly
+              size="sm"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Favorite Rate</span>
+            <span className="font-medium">{stats.favoriteRate.toFixed(0)}%</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function GenerationHistory() {
   const { toast } = useToast();
@@ -315,6 +389,11 @@ export default function GenerationHistory() {
                       bands={16}
                       height={150}
                     />
+                  )}
+
+                  {/* Community Rating Widget */}
+                  {item.status === 'completed' && (
+                    <GenerationRatingWidget generationId={item.id} />
                   )}
 
                   {/* Audio Player & Actions */}

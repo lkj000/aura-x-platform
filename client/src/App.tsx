@@ -18,6 +18,8 @@ import Library from './pages/Library';
 import AIStudio from './pages/AIStudio';
 import QueueDashboard from './pages/QueueDashboard';
 import AdminUsers from './pages/AdminUsers';
+import CommunityHub from './pages/CommunityHub';
+import MLOpsDashboard from './pages/MLOpsDashboard';
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -36,6 +38,8 @@ function Router() {
       <Route path="/ai-studio" component={AIStudio} />
       <Route path="/queue" component={QueueDashboard} />
       <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/community" component={CommunityHub} />
+      <Route path="/mlops" component={MLOpsDashboard} />
       <Route path="/settings" component={Settings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
