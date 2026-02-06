@@ -447,15 +447,17 @@ export default function Instruments() {
                               {preset.description}
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => toggleFavorite(preset.id, e)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-background rounded"
-                            disabled={isGenerating}
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isGenerating) toggleFavorite(preset.id, e);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-background rounded cursor-pointer"
                           >
                             <span className={isFavorite(preset.id) ? 'text-yellow-500' : 'text-muted-foreground'}>
                               {isFavorite(preset.id) ? '★' : '☆'}
                             </span>
-                          </button>
+                          </div>
                         </div>
                       </button>
                     ))}

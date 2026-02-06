@@ -1630,3 +1630,7 @@
 - [ ] Verify navigation flow across all pages
 - [ ] Performance testing for bulk uploads (100+ files)
 - [ ] Cross-browser compatibility testing (Chrome, Firefox, Safari)
+
+
+## Bug Fixes (Nested Button Error)
+- [x] Fix nested button error on /instruments page
