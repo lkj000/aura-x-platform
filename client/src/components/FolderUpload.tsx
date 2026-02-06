@@ -3,6 +3,8 @@ import { Upload, Folder, File, Check, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { trpc } from '@/lib/trpc';
+import { useToast } from '@/hooks/use-toast';
 
 interface FileNode {
   name: string;
@@ -167,35 +169,105 @@ export default function FolderUpload({ onUploadComplete, onCancel }: FolderUploa
     );
   };
 
+  const { toast } = useToast();
+  const createPackMutation = trpc.samplePacks.createPack.useMutation();
+  const uploadSampleMutation = trpc.samplePacks.uploadSample.useMutation();
+  const createFolderMutation = trpc.samplePacks.createFolder.useMutation();
+
   const handleUpload = async () => {
-    if (!fileTree) return;
+    if (!fileTree || !packName) return;
 
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
-      // TODO: Implement actual upload logic with tRPC
-      // For now, simulate upload progress
+      // Step 1: Create pack
+      const { packId } = await createPackMutation.mutateAsync({
+        name: packName,
+        description: `Uploaded from folder: ${fileTree.name}`,
+        version: '1.0',
+        genre: 'amapiano',
+      });
+
       const totalFiles = countFiles(fileTree);
       let uploadedFiles = 0;
 
-      const simulateUpload = () => {
-        uploadedFiles++;
-        setUploadProgress((uploadedFiles / totalFiles) * 100);
-        
-        if (uploadedFiles < totalFiles) {
-          setTimeout(simulateUpload, 100);
-        } else {
-          // Upload complete
-          setTimeout(() => {
-            onUploadComplete(1); // Mock pack ID
-          }, 500);
+      // Step 2: Recursively upload folders and files
+      const uploadNode = async (node: FileNode, parentFolderId?: number) => {
+        if (node.type === 'folder') {
+          // Create folder in database
+          const { folderId } = await createFolderMutation.mutateAsync({
+            packId,
+            name: node.name,
+            parentFolderId,
+            path: node.path,
+          });
+
+          // Upload children
+          if (node.children) {
+            for (const child of node.children) {
+              await uploadNode(child, folderId);
+            }
+          }
+        } else if (node.type === 'file' && node.file) {
+          // Convert file to base64
+          const fileBuffer = await node.file.arrayBuffer();
+          const base64 = btoa(
+            new Uint8Array(fileBuffer).reduce(
+              (data, byte) => data + String.fromCharCode(byte),
+              ''
+            )
+          );
+
+          // Detect category from folder path
+          const detectCategory = (path: string): string => {
+            const lowerPath = path.toLowerCase();
+            if (lowerPath.includes('fx')) return 'fx';
+            if (lowerPath.includes('loop')) return 'loop';
+            if (lowerPath.includes('one') && lowerPath.includes('shot')) return 'one-shot';
+            if (lowerPath.includes('bass')) return 'bass';
+            if (lowerPath.includes('chord')) return 'chord';
+            if (lowerPath.includes('vocal')) return 'vocal';
+            if (lowerPath.includes('percussion')) return 'percussion';
+            if (lowerPath.includes('log') && lowerPath.includes('drum')) return 'log-drum';
+            if (lowerPath.includes('shaker')) return 'shaker';
+            if (lowerPath.includes('sax')) return 'saxophone';
+            return 'one-shot'; // default
+          };
+
+          // Upload sample to S3 via tRPC
+          await uploadSampleMutation.mutateAsync({
+            packId,
+            name: node.file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+            filename: node.file.name,
+            fileData: base64,
+            category: detectCategory(node.path) as any,
+            folderId: parentFolderId,
+            metadata: {
+              fileSize: node.file.size,
+            },
+          });
+
+          uploadedFiles++;
+          setUploadProgress((uploadedFiles / totalFiles) * 100);
         }
       };
 
-      simulateUpload();
+      await uploadNode(fileTree);
+
+      toast({
+        title: 'Upload Complete',
+        description: `Successfully uploaded ${totalFiles} samples to "${packName}"`,
+      });
+
+      onUploadComplete(packId);
     } catch (error) {
       console.error('Upload failed:', error);
+      toast({
+        title: 'Upload Failed',
+        description: error instanceof Error ? error.message : 'An error occurred during upload',
+        variant: 'destructive',
+      });
       setIsUploading(false);
     }
   };
