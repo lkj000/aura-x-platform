@@ -57,18 +57,27 @@ export function generateMIDIFromEuclidean(config: RhythmConfig): MIDIData {
         const baseTime = bar * secondsPerBar + stepIndex * secondsPerStep;
         
         // Apply swing to off-beats
+        // Swing percentage represents how much to delay the off-beat
+        // 50% = straight, 60% = swung
         let swingOffset = 0;
         if (stepIndex % 2 === 1) {
-          swingOffset = secondsPerStep * (rhythm.swingPercent / 100);
+          // Convert swing percent to timing offset
+          // At 50%, off-beat is exactly halfway (no offset)
+          // At 60%, off-beat is delayed by 20% of step duration
+          const swingRatio = (rhythm.swingPercent - 50) / 50; // -1 to 1 range
+          swingOffset = secondsPerStep * swingRatio * 0.2; // Max 20% offset
         }
         
         // Apply micro-timing jitter
         const jitter = (Math.random() - 0.5) * (rhythm.microTimingJitter / 1000);
         
+        // Clamp start time to prevent negative values
+        const startTime = Math.max(0, baseTime + swingOffset + jitter);
+        
         kickNotes.push({
           pitch: 36, // C1 - Kick drum
           velocity: 100 + Math.floor(Math.random() * 27), // 100-127 for variation
-          startTime: baseTime + swingOffset + jitter,
+          startTime,
           duration: secondsPerStep * 0.8, // 80% of step duration
         });
       }
