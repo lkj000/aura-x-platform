@@ -660,3 +660,39 @@ export const modelPerformanceMetrics = mysqlTable("model_performance_metrics", {
 
 export type ModelPerformanceMetric = typeof modelPerformanceMetrics.$inferSelect;
 export type InsertModelPerformanceMetric = typeof modelPerformanceMetrics.$inferInsert;
+
+
+// ============================================================================
+// Sample Pack Folders (New)
+// ============================================================================
+
+/**
+ * Sample Pack Folders table
+ * Represents folder structure within a pack (FX, Loops, One Shot, etc.)
+ */
+export const samplePackFolders = mysqlTable('samplePackFolders', {
+  id: int('id').primaryKey().autoincrement(),
+  packId: int('packId').notNull(), // Foreign key to samplePacks
+  name: varchar('name', { length: 255 }).notNull(), // FX, Loops, One Shot
+  parentFolderId: int('parentFolderId'), // For nested folders
+  path: text('path'), // Full path from pack root
+  sampleCount: int('sampleCount').default(0),
+  createdAt: timestamp('createdAt').defaultNow(),
+});
+
+export type SamplePackFolder = typeof samplePackFolders.$inferSelect;
+export type InsertSamplePackFolder = typeof samplePackFolders.$inferInsert;
+
+/**
+ * Sample Pack Downloads table
+ * Track who downloaded which packs
+ */
+export const samplePackDownloads = mysqlTable('samplePackDownloads', {
+  id: int('id').primaryKey().autoincrement(),
+  packId: int('packId').notNull(),
+  userId: int('userId').notNull(),
+  downloadedAt: timestamp('downloadedAt').defaultNow(),
+});
+
+export type SamplePackDownload = typeof samplePackDownloads.$inferSelect;
+export type InsertSamplePackDownload = typeof samplePackDownloads.$inferInsert;
