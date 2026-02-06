@@ -1435,3 +1435,24 @@
 - [ ] Verify Gold Standard auto-marking (≥4/5 ratings)
 - [ ] Test drift detection alerts with real data
 - [ ] Validate data pipeline for model retraining
+
+
+## Comparative Analysis Follow-Up Actions (Based on DAW Audit)
+
+### Immediate Priorities (Next 2 Weeks)
+- [ ] Connect cultural algorithms to audio generation (orchestration_agent.py)
+- [ ] Wire orchestration agent to frontend (AI Studio "Generate & Analyze" button)
+- [ ] Implement automated quality scoring in generation workflow
+- [ ] Add Amapiano-specific quality metrics (log drum, gasp, swing detection)
+
+### Short-Term Goals (Next 1-2 Months)
+- [ ] Implement automated retraining pipeline (Gold Standard → fine-tune → A/B test)
+- [ ] Build Pattern Library Browser (/patterns page with audio previews)
+- [ ] Implement Temporal workflow orchestration
+- [ ] Add workflow automation (generate → analyze → regenerate → stems → DAW)
+
+### Strategic Decision Required
+- [ ] Choose product strategy: Convergence / Differentiation / Hybrid
+- [ ] If Hybrid (recommended): Design "Pro Mode" DAW integration
+- [ ] Define pricing tiers (Free / Creator $19 / Pro $39)
+- [ ] Plan feature prioritization based on chosen strategy
