@@ -22,6 +22,7 @@ import CommunityHub from './pages/CommunityHub';
 import MLOpsDashboard from './pages/MLOpsDashboard';
 import PatternLibrary from './pages/PatternLibrary';
 import SamplePackBrowser from './pages/SamplePackBrowser';
+import ChordLibrary from './pages/ChordLibrary';
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/mlops" component={MLOpsDashboard} />
       <Route path="/patterns" component={PatternLibrary} />
       <Route path="/my-packs" component={SamplePackBrowser} />
+      <Route path="/chords" component={ChordLibrary} />
       <Route path="/settings" component={Settings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

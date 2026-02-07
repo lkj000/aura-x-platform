@@ -1665,3 +1665,34 @@
 - [ ] Add chord progression preview player
 - [ ] Create "Add to DAW" integration for chord MIDI
 - [ ] Test MIDI export and DAW import workflow
+
+
+## Session: Kabza's Chord Library & DAW Store Integration (Current)
+
+### Phase 1: Kabza's Chord Library (COMPLETE ✅)
+- [x] Create kabzaChordLibrary.ts with 6-5-4-2 emotional framework
+- [x] Implement chord voicing calculations with MIDI notes
+- [x] Create ChordLibrary page component at /chords
+- [x] Add emotional arc visualization (4-stage framework)
+- [x] Implement progression cards with preview/export
+- [x] Add detailed chord analysis view with voicings
+- [x] Add route to App.tsx
+- [x] Integrate with navigation menu
+
+### Phase 2: DAW Store Integration (IN PROGRESS 🔄)
+- [x] Create TimelineWithStore component
+- [x] Integrate with Zustand DAW store
+- [x] Update Home.tsx to use new Timeline component
+- [x] Connect transport bar to DAW store state
+- [ ] Implement Web Audio API playback engine
+- [ ] Add waveform visualization for clips
+- [ ] Test "Add to Timeline" workflow end-to-end
+- [ ] Add clip editing features (trim, split, fade)
+
+### Phase 3: Modal Orchestration Backend (PENDING ⏳)
+- [ ] Configure MODAL_API_KEY environment variable
+- [ ] Deploy modal_orchestration.py to Modal.com
+- [ ] Wire "Generate & Analyze" button in AI Studio
+- [ ] Test autonomous workflow (generate → score → regenerate)
+- [ ] Implement stem separation integration
+- [ ] Add DAW import functionality

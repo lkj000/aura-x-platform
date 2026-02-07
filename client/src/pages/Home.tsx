@@ -8,6 +8,8 @@ import Layout from '@/components/Layout';
 import PianoRoll from '@/components/daw/PianoRoll';
 import Mixer from '@/components/daw/Mixer';
 import TimelineV2 from '@/components/daw/TimelineV2';
+import TimelineWithStore from '@/components/daw/TimelineWithStore';
+import { useDAWStore } from '@/stores/dawStore';
 import { 
   ResizableHandle, 
   ResizablePanel, 
@@ -39,6 +41,16 @@ import { useUndoRedo } from '@/hooks/useUndoRedo';
 import { HistoryPanel } from '@/components/HistoryPanel';
 
 export default function Home() {
+  // Use DAW store for state management
+  const {
+    isPlaying: dawIsPlaying,
+    setIsPlaying,
+    tempo: dawTempo,
+    setTempo: dawSetTempo,
+    playheadPosition,
+    setPlayheadPosition,
+  } = useDAWStore();
+  
   const { 
     isPlaying, 
     togglePlay, 
@@ -122,18 +134,18 @@ export default function Home() {
     loadAllClips();
   }, [tracksQuery.data]);
   
-  // Custom play handler that uses AudioEngine.playTimeline()
+  // Custom play handler using DAW store
   const handlePlay = async () => {
-    if (isPlaying) {
-      stop();
+    if (dawIsPlaying) {
+      setIsPlaying(false);
     } else {
-      try {
-        await AudioEngine.playTimeline(allClips, currentPosition);
-      } catch (error) {
-        console.error('[Home] Playback failed:', error);
-        toast.error('Playback failed');
-      }
+      setIsPlaying(true);
     }
+  };
+
+  const handleStop = () => {
+    setIsPlaying(false);
+    setPlayheadPosition(0);
   };
 
   // Load real samples from media library
@@ -231,7 +243,7 @@ export default function Home() {
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={stop}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleStop}>
                 <Square className="h-4 w-4 fill-current" />
               </Button>
             </div>
@@ -239,7 +251,7 @@ export default function Home() {
             <div className="flex items-center gap-4 px-4 border-l border-r border-border h-8">
               <div className="flex flex-col items-center">
                 <span className="text-[10px] text-muted-foreground font-mono uppercase">Tempo</span>
-                <span className="text-lg font-bold font-mono leading-none text-primary">{tempo}</span>
+                <span className="text-lg font-bold font-mono leading-none text-primary">{dawTempo}</span>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-[10px] text-muted-foreground font-mono uppercase">Key</span>
@@ -310,15 +322,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex-1 overflow-hidden">
-                <TimelineV2 
-                  projectId={currentProjectId || 1}
-                  isPlaying={isPlaying}
-                  currentTime={currentPosition}
-                  onTimeChange={(time) => {
-                    // Seek to new position
-                    AudioEngine.setPosition(time);
-                  }}
-                />
+                <TimelineWithStore />
               </div>
             </div>
           </ResizablePanel>
