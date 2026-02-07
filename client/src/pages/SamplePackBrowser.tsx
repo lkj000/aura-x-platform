@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import FolderUpload from '@/components/FolderUpload';
 import { useToast } from '@/hooks/use-toast';
+import { useDAWStore } from '@/stores/dawStore';
+import { useLocation } from 'wouter';
 
 export default function SamplePackBrowser() {
   const [showUpload, setShowUpload] = useState(false);
@@ -25,6 +27,11 @@ export default function SamplePackBrowser() {
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const addClip = useDAWStore((state) => state.addClip);
+  const addTrack = useDAWStore((state) => state.addTrack);
+  const tracks = useDAWStore((state) => state.tracks);
+  
   const { data: packs, refetch: refetchPacks } = trpc.samplePacks.getMyPacks.useQuery();
   const { data: packDetails } = trpc.samplePacks.getPackDetails.useQuery(
     { packId: selectedPackId! },
@@ -58,6 +65,49 @@ export default function SamplePackBrowser() {
       setAudioElement(audio);
       setPlayingSampleId(sampleId);
     }
+  };
+
+  const handleAddToTimeline = (sample: any) => {
+    // Find or create an audio track
+    let audioTrack = tracks.find((t) => t.type === 'audio');
+    
+    if (!audioTrack) {
+      // Create first audio track
+      const trackId = addTrack({
+        name: 'Audio 1',
+        volume: 1,
+        pan: 0,
+        muted: false,
+        solo: false,
+        color: '#3b82f6',
+        type: 'audio',
+      });
+      audioTrack = tracks.find((t) => t.id === trackId);
+    }
+
+    if (!audioTrack) return;
+
+    // Add clip to timeline
+    const clipId = addClip(audioTrack.id, {
+      sampleId: sample.id,
+      name: sample.filename,
+      url: sample.url,
+      startTime: 0, // Add at beginning for now
+      duration: sample.duration || 10, // Default 10s if duration unknown
+      volume: 1,
+      pan: 0,
+      muted: false,
+      solo: false,
+      color: '#3b82f6',
+    });
+
+    toast({
+      title: 'Added to Timeline',
+      description: `${sample.filename} has been added to the DAW timeline`,
+    });
+
+    // Navigate to DAW studio
+    setLocation('/studio');
   };
 
   const handleDeletePack = async (packId: number) => {
@@ -134,13 +184,7 @@ export default function SamplePackBrowser() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => {
-                      // TODO: Implement add to DAW timeline
-                      toast({
-                        title: 'Add to Timeline',
-                        description: 'DAW integration coming soon',
-                      });
-                    }}
+                    onClick={() => handleAddToTimeline(sample)}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
