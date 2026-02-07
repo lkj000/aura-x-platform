@@ -29,16 +29,16 @@ export default function Layout({ children }: LayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
 
   const navItems = [
-    { icon: LayoutGrid, label: 'Studio', path: '/' },
-    { icon: Disc, label: 'Projects', path: '/projects' },
-    { icon: Mic2, label: 'Instruments', path: '/instruments' },
-    { icon: Activity, label: 'Analysis', path: '/analysis' },
-    { icon: History, label: 'History', path: '/history' },
-    { icon: ShoppingBag, label: 'Marketplace', path: '/marketplace' },
-    { icon: LibraryIcon, label: 'Library', path: '/library' },
+    { icon: LayoutGrid, label: 'Home', path: '/' },
     { icon: Sparkles, label: 'AI Studio', path: '/ai-studio' },
-    { icon: ListOrdered, label: 'Queue', path: '/queue' },
-    { icon: Shield, label: 'Admin', path: '/admin/users' },
+    { icon: Mic2, label: 'Instruments', path: '/instruments' },
+    { icon: ShoppingBag, label: 'Sample Packs', path: '/my-packs' },
+    { icon: Activity, label: 'Patterns', path: '/patterns' },
+    { icon: Music, label: 'Chord Library', path: '/chords' },
+    { icon: Disc, label: 'DAW Studio', path: '/studio' },
+    { icon: LibraryIcon, label: 'Community', path: '/community' },
+    { icon: History, label: 'Analytics', path: '/mlops' },
+    { icon: ListOrdered, label: 'History', path: '/history' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

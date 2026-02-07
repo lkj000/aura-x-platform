@@ -1634,3 +1634,34 @@
 
 ## Bug Fixes (Nested Button Error)
 - [x] Fix nested button error on /instruments page
+
+
+## Navigation & Integration Implementation (Current)
+
+### Phase 1: Persistent Navigation Menu
+- [ ] Create NavigationMenu component with sidebar layout
+- [ ] Add links to all pages (/my-packs, /ai-studio, /patterns, /community, /mlops, /studio, /instruments, /chords)
+- [ ] Implement active route highlighting
+- [ ] Add user profile section with logout
+- [ ] Integrate navigation into Layout component
+- [ ] Add mobile responsive hamburger menu
+- [ ] Test navigation across all pages
+
+### Phase 2: DAW Timeline Integration
+- [ ] Wire "Add to Timeline" button in Sample Pack Browser
+- [ ] Create tRPC procedure for adding samples to DAW timeline
+- [ ] Implement automatic BPM detection from sample metadata
+- [ ] Add grid snapping logic (16th, 8th, quarter notes)
+- [ ] Create audio clip objects with waveform data
+- [ ] Update DAW state management to accept external clips
+- [ ] Test end-to-end: Sample Pack → Add to Timeline → DAW playback
+
+### Phase 3: Kabza's Chord Library
+- [ ] Create /chords page with chord progression browser
+- [ ] Implement 6-5-4-2 emotional framework database
+- [ ] Add chord progression categories (Vulnerability, Shattering, Integration)
+- [ ] Create open voicing calculator for piano chords
+- [ ] Implement MIDI export functionality
+- [ ] Add chord progression preview player
+- [ ] Create "Add to DAW" integration for chord MIDI
+- [ ] Test MIDI export and DAW import workflow
