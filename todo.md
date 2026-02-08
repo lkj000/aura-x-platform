@@ -2050,3 +2050,36 @@
 - [ ] Add preset deletion with confirmation
 - [x] Display user's saved presets
 - [ ] Add preset sharing capability (optional)
+
+
+## Final Next Steps Implementation
+
+### Step 1: Add Preset Editing and Deletion
+- [x] Add edit button to custom preset cards
+- [x] Create edit preset dialog with pre-filled values
+- [x] Implement update preset mutation
+- [x] Add delete button with confirmation dialog
+- [x] Implement delete preset mutation
+- [x] Add success/error toasts for edit/delete operations
+- [x] Refresh preset list after operations
+
+### Step 2: Implement Queue Notifications
+- [x] Add toast notification when queue position changes
+- [x] Add toast notification when generation completes
+- [x] Add toast notification when generation fails
+- [x] Implement background polling for queue status (already polling every 5s)
+- [ ] Add notification sound (optional)
+- [ ] Add notification preferences in settings
+
+### Step 3: Test Real Generation End-to-End
+- [ ] Log in to the platform
+- [ ] Navigate to /instruments page
+- [ ] Configure generation parameters
+- [ ] Trigger music generation
+- [ ] Verify queue status display
+- [ ] Monitor webhook callback
+- [ ] Verify S3 storage upload
+- [ ] Check audio playback
+- [ ] Verify generation appears in /history page
+- [ ] Test preset saving with generated parameters
+- [ ] Test preset loading and regeneration

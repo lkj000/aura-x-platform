@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lightbulb, Lock } from 'lucide-react';
+import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lightbulb, Lock, Edit, Trash2 } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
 import { AudioEngine } from '@/services/AudioEngine';
@@ -101,7 +101,13 @@ export default function Instruments() {
   // Custom presets
   const customPresetsQuery = trpc.customPresets.list.useQuery();
   const createPresetMutation = trpc.customPresets.create.useMutation();
+  const updatePresetMutation = trpc.customPresets.update.useMutation();
+  const deletePresetMutation = trpc.customPresets.delete.useMutation();
   const [showSavePresetDialog, setShowSavePresetDialog] = useState(false);
+  const [showEditPresetDialog, setShowEditPresetDialog] = useState(false);
+  const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
+  const [editingPresetId, setEditingPresetId] = useState<number | null>(null);
+  const [deletingPresetId, setDeletingPresetId] = useState<number | null>(null);
   const [presetName, setPresetName] = useState('');
   const [presetDescription, setPresetDescription] = useState('');
 
@@ -155,9 +161,108 @@ export default function Instruments() {
     }
   };
 
+  const handleEditPreset = async () => {
+    if (!editingPresetId || !presetName.trim()) {
+      toast({
+        title: 'Preset Name Required',
+        description: 'Please enter a name for your preset',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await updatePresetMutation.mutateAsync({
+        id: editingPresetId,
+        name: presetName,
+        description: presetDescription,
+      });
+
+      toast({
+        title: 'Preset Updated',
+        description: `"${presetName}" has been updated successfully`,
+      });
+
+      setShowEditPresetDialog(false);
+      setEditingPresetId(null);
+      setPresetName('');
+      setPresetDescription('');
+      utils.customPresets.list.invalidate();
+    } catch (error) {
+      toast({
+        title: 'Failed to Update Preset',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeletePreset = async () => {
+    if (!deletingPresetId) return;
+
+    try {
+      await deletePresetMutation.mutateAsync({ id: deletingPresetId });
+
+      toast({
+        title: 'Preset Deleted',
+        description: 'Preset has been deleted successfully',
+      });
+
+      setShowDeleteConfirmDialog(false);
+      setDeletingPresetId(null);
+      utils.customPresets.list.invalidate();
+    } catch (error) {
+      toast({
+        title: 'Failed to Delete Preset',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const isFavorite = (presetId: string) => {
     return presetFavoritesQuery.data?.some(fav => fav.presetId === presetId) || false;
   };
+
+  // Queue notifications
+  const prevQueuePositionRef = useRef<number | null>(null);
+  const prevGenerationStatusRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!userQueueQuery.data || userQueueQuery.data.length === 0) return;
+
+    const currentQueue = userQueueQuery.data[0];
+    const currentPosition = currentQueue.queuePosition;
+    const currentStatus = currentQueue.status;
+
+    // Queue position changed
+    if (prevQueuePositionRef.current !== null && prevQueuePositionRef.current !== currentPosition) {
+      toast({
+        title: 'Queue Position Updated',
+        description: `You are now #${currentPosition} in the queue`,
+      });
+    }
+
+    // Generation completed
+    if (prevGenerationStatusRef.current === 'processing' && currentStatus === 'completed') {
+      toast({
+        title: 'Generation Complete! 🎉',
+        description: 'Your Amapiano track is ready to play',
+      });
+    }
+
+    // Generation failed
+    if (prevGenerationStatusRef.current === 'processing' && currentStatus === 'failed') {
+      toast({
+        title: 'Generation Failed',
+        description: currentQueue.errorMessage || 'An error occurred during generation',
+        variant: 'destructive',
+      });
+    }
+
+    prevQueuePositionRef.current = currentPosition;
+    prevGenerationStatusRef.current = currentStatus;
+  }, [userQueueQuery.data, toast]);
 
   const toggleFavorite = async (presetId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -668,42 +773,74 @@ export default function Instruments() {
                   <TabsContent value="custom" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
                     {customPresetsQuery.data && customPresetsQuery.data.length > 0 ? (
                       customPresetsQuery.data.map((preset) => (
-                        <button
+                        <div
                           key={preset.id}
-                          className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50"
-                          onClick={() => {
-                            const presetParams = preset.parameters as any;
-                            setParams({
-                              ...params,
-                              prompt: preset.prompt,
-                              mode: preset.style,
-                              tempo: presetParams.tempo || params.tempo,
-                              key: presetParams.key || params.key,
-                              duration: presetParams.duration || params.duration,
-                              seed: presetParams.seed || params.seed,
-                              temperature: presetParams.temperature || params.temperature,
-                              topK: presetParams.topK || params.topK,
-                              topP: presetParams.topP || params.topP,
-                              cfgScale: presetParams.cfgScale || params.cfgScale,
-                            });
-                          }}
-                          disabled={isGenerating}
+                          className="w-full p-3 rounded-lg border bg-card hover:bg-accent transition-colors group relative"
                         >
-                          <div className="flex items-start gap-2">
-                            <span className="text-2xl">{preset.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm">{preset.name}</div>
-                              {preset.description && (
-                                <div className="text-xs text-muted-foreground line-clamp-2">
-                                  {preset.description}
+                          <button
+                            className="w-full text-left"
+                            onClick={() => {
+                              const presetParams = preset.parameters as any;
+                              setParams({
+                                ...params,
+                                prompt: preset.prompt,
+                                mode: preset.style,
+                                tempo: presetParams.tempo || params.tempo,
+                                key: presetParams.key || params.key,
+                                duration: presetParams.duration || params.duration,
+                                seed: presetParams.seed || params.seed,
+                                temperature: presetParams.temperature || params.temperature,
+                                topK: presetParams.topK || params.topK,
+                                topP: presetParams.topP || params.topP,
+                                cfgScale: presetParams.cfgScale || params.cfgScale,
+                              });
+                            }}
+                            disabled={isGenerating}
+                          >
+                            <div className="flex items-start gap-2">
+                              <span className="text-2xl">{preset.icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm">{preset.name}</div>
+                                {preset.description && (
+                                  <div className="text-xs text-muted-foreground line-clamp-2">
+                                    {preset.description}
+                                  </div>
+                                )}
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Used {preset.usageCount} times
                                 </div>
-                              )}
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Used {preset.usageCount} times
                               </div>
                             </div>
+                          </button>
+                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPresetId(preset.id);
+                                setPresetName(preset.name);
+                                setPresetDescription(preset.description || '');
+                                setShowEditPresetDialog(true);
+                              }}
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingPresetId(preset.id);
+                                setShowDeleteConfirmDialog(true);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
                           </div>
-                        </button>
+                        </div>
                       ))
                     ) : (
                       <div className="text-center text-sm text-muted-foreground py-8">
@@ -927,6 +1064,74 @@ export default function Instruments() {
                           setShowSavePresetDialog(false);
                           setPresetName('');
                           setPresetDescription('');
+                        }}
+                        variant="outline"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Edit Preset Dialog */}
+              {showEditPresetDialog && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md space-y-4">
+                    <h3 className="text-lg font-semibold">Edit Preset</h3>
+                    <div className="space-y-2">
+                      <Label>Preset Name *</Label>
+                      <Input
+                        value={presetName}
+                        onChange={(e) => setPresetName(e.target.value)}
+                        placeholder="e.g., My Kasi Groove"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description (Optional)</Label>
+                      <Textarea
+                        value={presetDescription}
+                        onChange={(e) => setPresetDescription(e.target.value)}
+                        placeholder="Describe this preset..."
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleEditPreset} className="flex-1">
+                        Update Preset
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowEditPresetDialog(false);
+                          setEditingPresetId(null);
+                          setPresetName('');
+                          setPresetDescription('');
+                        }}
+                        variant="outline"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Delete Preset Confirmation Dialog */}
+              {showDeleteConfirmDialog && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md space-y-4">
+                    <h3 className="text-lg font-semibold">Delete Preset</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Are you sure you want to delete this preset? This action cannot be undone.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button onClick={handleDeletePreset} variant="destructive" className="flex-1">
+                        Delete Preset
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowDeleteConfirmDialog(false);
+                          setDeletingPresetId(null);
                         }}
                         variant="outline"
                       >
