@@ -1696,3 +1696,17 @@
 - [ ] Test autonomous workflow (generate → score → regenerate)
 - [ ] Implement stem separation integration
 - [ ] Add DAW import functionality
+
+### Phase 4: Modal Orchestration Backend (IN PROGRESS 🔄)
+- [x] Install Modal CLI
+- [x] Configure Modal authentication with token
+- [x] Deploy modal_deploy.py to Modal.com
+- [x] Verify deployment with health check
+- [x] Create vitest test for Modal API validation
+- [x] Set VITE_MODAL_API_URL environment variable
+- [x] Update modalClient.ts to use deployed endpoint
+- [ ] Test real music generation with MusicGen
+- [ ] Wire "Generate & Analyze" button in AI Studio
+- [ ] Test autonomous workflow (generate → score → regenerate)
+- [ ] Implement stem separation integration
+- [ ] Add DAW import functionality

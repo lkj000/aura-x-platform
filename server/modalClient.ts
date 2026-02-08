@@ -5,9 +5,9 @@ import axios from 'axios';
  * Connects to your deployed Modal functions for AI music generation
  */
 
-// Modal endpoint URLs (to be configured via environment variables)
-const MODAL_BASE_URL = process.env.MODAL_BASE_URL || 'https://your-modal-app.modal.run';
-const MODAL_API_KEY = process.env.MODAL_API_KEY || '';
+// Modal endpoint URLs (configured via environment variables)
+const MODAL_BASE_URL = process.env.VITE_MODAL_API_URL || 'https://mabgwej--aura-x-ai-fastapi-app.modal.run';
+const MODAL_API_KEY = process.env.MODAL_API_KEY || '';  // Modal doesn't require API key for public endpoints
 
 const modalClient = axios.create({
   baseURL: MODAL_BASE_URL,
@@ -79,7 +79,7 @@ export async function generateMusic(params: MusicGenerationParams): Promise<Musi
     console.log('[ModalClient] Generating music with params:', params);
     
     // Check if Modal is configured
-    if (!MODAL_API_KEY || MODAL_BASE_URL.includes('your-modal-app')) {
+    if (MODAL_BASE_URL.includes('your-modal-app')) {
       console.warn('[ModalClient] Modal not configured, using demo mode');
       // Return a demo response that simulates async processing
       const jobId = `demo-${Date.now()}`;
@@ -95,7 +95,27 @@ export async function generateMusic(params: MusicGenerationParams): Promise<Musi
       };
     }
     
-    const response = await modalClient.post<MusicGenerationResponse>('/generate-music', params);
+    // Call the deployed Modal endpoint
+    const response = await modalClient.post('/generate_music', {
+      prompt: params.prompt,
+      duration: params.duration || 30,
+      temperature: params.temperature || 1.0,
+      top_k: params.topK || 250,
+      top_p: params.topP || 0.0,
+      cfg_scale: params.cfgScale || 3.0,
+      seed: params.seed,
+    });
+    
+    // Modal returns audio as base64, we need to handle it
+    if (response.data.status === 'success' && response.data.audio_base64) {
+      // For now, return as processing - in production, upload to S3 and return URL
+      return {
+        jobId: `modal-${Date.now()}`,
+        status: 'completed',
+        audioUrl: `data:audio/wav;base64,${response.data.audio_base64}`,
+        processingTime: 0,
+      };
+    }
     
     return response.data;
   } catch (error) {
