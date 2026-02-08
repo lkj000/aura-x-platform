@@ -27,6 +27,7 @@ image = (
         "scipy==1.11.4",
         "pyloudnorm==0.1.1",
         "fastapi==0.104.1",
+        "boto3==1.34.0",  # AWS S3 SDK
     )
 )
 
@@ -88,6 +89,7 @@ def health_endpoint():
     gpu="A10G",
     timeout=600,
     volumes={"/models": model_volume},
+    secrets=[modal.Secret.from_name("aura-x-secrets")],
 )
 def generate_music(request_data: dict):
     """
@@ -133,14 +135,44 @@ def generate_music(request_data: dict):
             loudness_compressor=True
         )
         
-        # Read file and encode to base64
+        # Read file and upload to S3
         with open(tmp_file.name, "rb") as f:
             audio_bytes = f.read()
-            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        
+        # Upload to S3
+        import boto3
+        import os
+        import random
+        import string
+        
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+            region_name=os.environ.get("S3_REGION", "us-east-1")
+        )
+        
+        # Generate unique S3 key
+        generation_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        s3_key = f"generated-audio/{generation_id}-{random_suffix}.wav"
+        
+        # Upload to S3
+        s3_bucket = os.environ.get("S3_BUCKET")
+        s3_client.put_object(
+            Bucket=s3_bucket,
+            Key=s3_key,
+            Body=audio_bytes,
+            ContentType='audio/wav',
+            ACL='public-read'
+        )
+        
+        # Construct public URL
+        s3_url = f"https://{s3_bucket}.s3.{os.environ.get('S3_REGION', 'us-east-1')}.amazonaws.com/{s3_key}"
     
     return {
         "status": "success",
-        "audio_base64": audio_base64,
+        "audio_url": s3_url,
         "sample_rate": model.sample_rate,
         "duration": request_data.get("duration", 30),
         "seed": seed,
