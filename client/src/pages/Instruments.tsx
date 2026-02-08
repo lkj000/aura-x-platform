@@ -179,27 +179,26 @@ export default function Instruments() {
     },
   });
 
-  // TODO: Fix tRPC type generation for separateStems
-  // const separateStemsMutation = trpc.generate.separateStems.useMutation({
-  //   onSuccess: (data: any) => {
-  //     setIsSeparatingStems(false);
-  //     if (data.status === 'completed' && data.stems) {
-  //       setStems(data.stems);
-  //       toast({
-  //         title: 'Stem Separation Complete!',
-  //         description: `Extracted ${data.stems.length} stems: drums, bass, vocals, other`,
-  //       });
-  //     }
-  //   },
-  //   onError: (error: any) => {
-  //     setIsSeparatingStems(false);
-  //     toast({
-  //       title: 'Stem Separation Failed',
-  //       description: error.message,
-  //       variant: 'destructive',
-  //       });
-  //   },
-  // });
+  const separateStemsMutation = trpc.aiStudio.separateStems.useMutation({
+    onSuccess: (data: any) => {
+      setIsSeparatingStems(false);
+      if (data.status === 'completed' && data.stems) {
+        setStems(data.stems);
+        toast({
+          title: 'Stem Separation Complete!',
+          description: `Extracted ${data.stems.length} stems: drums, bass, vocals, other`,
+        });
+      }
+    },
+    onError: (error: any) => {
+      setIsSeparatingStems(false);
+      toast({
+        title: 'Stem Separation Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
   const pollGenerationStatus = async (generationId: number) => {
     const maxAttempts = 60; // 5 minutes max (5s intervals)
@@ -354,13 +353,7 @@ export default function Instruments() {
     if (!generatedAudio) return;
     
     setIsSeparatingStems(true);
-    // TODO: Fix tRPC type generation
-    // separateStemsMutation.mutate({ generationId: generatedAudio.generationId });
-    toast({
-      title: 'Feature Coming Soon',
-      description: 'Stem separation will be available after tRPC type regeneration',
-    });
-    setIsSeparatingStems(false);
+    separateStemsMutation.mutate({ generationId: generatedAudio.generationId });
   };
 
   const handleSaveToLibrary = async () => {

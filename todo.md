@@ -1788,3 +1788,35 @@
 - [ ] Test stem separation with generated tracks
 - [ ] Validate multi-agent reasoning improvements
 - [ ] Save final checkpoint
+
+
+## New Session: Final Integration & Multi-Agent Reasoning
+
+### Phase 1: Fix tRPC Type Generation
+- [x] Restart dev server to regenerate tRPC types
+- [x] Uncomment separateStems mutation in Instruments.tsx
+- [x] Fix router path (aiStudio.separateStems not generate.separateStems)
+- [x] Verify tRPC client recognizes aiStudio.separateStems
+- [x] Test stem separation button functionality
+
+### Phase 2: End-to-End Autonomous Workflow Testing
+- [ ] Generate track with autonomous mode enabled
+- [ ] Verify quality scoring loop executes (3 attempts max)
+- [ ] Confirm real-time progress updates display
+- [ ] Test stem separation on generated audio
+- [ ] Download and verify all 4 stems (drums, bass, vocals, other)
+- [ ] Import stems to DAW timeline
+
+### Phase 3: Multi-Agent Strategic Reasoning Framework
+- [ ] Design CFR-inspired self-play architecture
+- [ ] Implement listener perspective modeling (casual, critic, dancer, purist)
+- [ ] Build depth-limited search for generation decisions
+- [ ] Create multi-agent competition system
+- [ ] Integrate with existing autonomous workflow
+- [ ] Test strategic reasoning vs. baseline generation
+
+### Phase 4: Final Testing & Delivery
+- [ ] Run full end-to-end workflow test
+- [ ] Verify all features work together
+- [ ] Document multi-agent reasoning architecture
+- [ ] Create checkpoint with complete implementation
