@@ -1857,3 +1857,38 @@
 - [ ] Verify all 4 stems download correctly
 - [ ] Test import to DAW timeline
 - [ ] Document final architecture
+
+
+## New Session: Modal S3 Upload Debug & Webhook Implementation
+
+### Phase 1: Debug Modal S3 Upload
+- [x] Check Modal deployment logs for S3 upload errors
+- [x] Add error handling to modal_orchestration.py S3 upload phase
+- [x] Fix response formatting from Modal backend (replaced base64 with S3 upload)
+- [x] Create AWS S3 bucket (aura-x-audio-generation)
+- [x] Create IAM user with S3FullAccess
+- [x] Generate and configure AWS access keys
+- [x] Validate S3 credentials with vitest
+- [x] Create Modal secrets with S3 credentials
+- [x] Redeploy Modal backend with S3 upload functionality
+- [ ] Test complete generation workflow with S3 upload
+
+### Phase 2: Implement Webhook Pattern
+- [ ] Create webhook endpoint in server/routers.ts
+- [ ] Update modal_orchestration.py to send webhook callbacks
+- [ ] Replace frontend long-polling with webhook listener
+- [ ] Implement real-time progress updates via webhooks
+- [ ] Test webhook pattern with full generation workflow
+
+### Phase 3: Test Autonomous Workflow
+- [ ] Enable autonomous mode in Instruments page
+- [ ] Generate track with quality scoring loop
+- [ ] Verify attempt-by-attempt progress visualization
+- [ ] Test automatic regeneration until 80/100 score
+- [ ] Download and verify final generated audio
+
+### Phase 4: Final Validation
+- [ ] Test complete end-to-end workflow (generate → download → playback)
+- [ ] Test stem separation on generated audio
+- [ ] Verify DAW timeline integration
+- [ ] Document all working features

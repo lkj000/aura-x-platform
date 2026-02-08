@@ -7,6 +7,7 @@ import modal
 import os
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
+from modal_s3_helper import upload_to_s3
 
 # Create Modal app
 app = modal.App("aura-x-orchestration")
@@ -24,6 +25,7 @@ image = (
         "scipy",
         "pydantic",
         "fastapi",
+        "boto3",  # AWS S3 SDK
     )
 )
 
@@ -118,10 +120,13 @@ def generate_with_midi(request: GenerationRequest) -> Dict[str, Any]:
                 loudness_compressor=True
             )
             
-            # Read file and encode as base64
+            # Read file and upload to S3
             with open(tmp.name, 'rb') as f:
                 audio_data = f.read()
-                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            
+            # Upload to S3
+            generation_id = os.urandom(16).hex()
+            s3_url = upload_to_s3(audio_data, generation_id)
         
         # Calculate quality score
         quality_score = calculate_quality_score(
@@ -132,10 +137,9 @@ def generate_with_midi(request: GenerationRequest) -> Dict[str, Any]:
         )
         
         return {
-            "audio_base64": audio_base64,
-            "audio_url": f"data:audio/wav;base64,{audio_base64}",
+            "audio_url": s3_url,
             "quality_score": quality_score,
-            "generation_id": os.urandom(16).hex(),
+            "generation_id": generation_id,
             "sample_rate": model.sample_rate,
             "cultural_params": request.cultural_params.dict(),
         }
