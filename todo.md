@@ -1947,7 +1947,33 @@
 - [x] Add error handling for failed jobs
 
 ### Testing
-- [ ] Test webhook endpoint with mock payloads
-- [ ] Test full async generation workflow
-- [ ] Verify audio player displays after completion
-- [ ] Test error scenarios (webhook failure, generation failure)
+- [x] Test webhook endpoint with mock payloads
+- [x] Test full async generation workflow
+- [x] Verify audio player displays after completion
+- [x] Test error scenarios (webhook failure, generation failure)
+
+
+## Next Steps: Webhook Pattern Testing & S3 Integration
+
+### Step 1: Test End-to-End Generation Workflow
+- [x] Navigate to /instruments page
+- [x] Trigger music generation with test prompt
+- [x] Verify frontend polling starts immediately
+- [x] Monitor backend logs for webhook callback
+- [x] Verify database updates with job status
+- [x] Confirm audio player displays after completion
+
+### Step 2: Re-enable S3 Upload in Modal Backend
+- [x] Update modal_deploy.py to upload audio to S3
+- [x] Add boto3 S3 upload code after generation
+- [x] Pass S3 URL in webhook callback
+- [x] Redeploy Modal backend
+- [ ] Test S3 upload with real generation
+
+### Step 3: Test Autonomous Mode with Quality Scoring
+- [x] Enable autonomous mode toggle in UI
+- [x] Trigger autonomous generation workflow
+- [x] Verify multi-attempt loop with scoring
+- [x] Confirm 80/100 threshold logic
+- [x] Test max 3 attempts limit
+- [x] Verify final optimized prompt display

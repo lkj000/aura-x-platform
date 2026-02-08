@@ -177,7 +177,7 @@ export const appRouter = router({
             topP: input.parameters?.topP,
             cfgScale: input.parameters?.cfgScale,
             generationMode: input.parameters?.generationMode || 'creative',
-          });
+          }, generation.id);
 
           // Update generation with Modal job ID
           await db.updateGeneration(generation.id, {

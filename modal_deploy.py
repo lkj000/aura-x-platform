@@ -140,14 +140,40 @@ def generate_music(request_data: dict, webhook_url: str = None, generation_id: i
             loudness_compressor=True
         )
         
-        # Read file and encode as base64 (temporary - S3 upload disabled for testing)
+        # Upload to S3
+        import boto3
+        import os
+        from datetime import datetime
+        
         with open(tmp_file.name, "rb") as f:
             audio_bytes = f.read()
         
-        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-        audio_url = f"data:audio/wav;base64,{audio_base64}"
-        
         print(f"[Generation] Successfully generated {len(audio_bytes)} bytes of audio")
+        
+        # Upload to S3
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+            region_name='us-east-1'
+        )
+        
+        # Generate unique S3 key
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        s3_key = f"generated-music/{timestamp}-gen{generation_id or 'test'}.wav"
+        bucket_name = 'aura-x-audio-generation'
+        
+        print(f"[S3] Uploading to s3://{bucket_name}/{s3_key}")
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=s3_key,
+            Body=audio_bytes,
+            ContentType='audio/wav',
+            ACL='public-read'
+        )
+        
+        audio_url = f"https://{bucket_name}.s3.amazonaws.com/{s3_key}"
+        print(f"[S3] Upload complete: {audio_url}")
     
     result = {
         "status": "success",
