@@ -1924,3 +1924,30 @@
 - [ ] Test complete workflow with S3 upload
 - [ ] Confirm audio player displays S3 URLs
 - [ ] Test autonomous workflow with quality scoring
+
+
+## Phase 3: Webhook Pattern Implementation (Current)
+
+### Backend Webhook Endpoint
+- [ ] Create `/api/modal/webhook` POST endpoint in server/routers.ts
+- [ ] Add database table for generation jobs (id, job_id, status, audio_url, created_at, completed_at)
+- [ ] Implement webhook handler to update job status
+- [ ] Add job status query endpoint `/api/trpc/generate.getJobStatus`
+
+### Modal Webhook Integration
+- [ ] Update modal_deploy.py to accept webhook_url parameter
+- [ ] Add webhook callback after generation completes
+- [ ] Include job_id and audio_url in webhook payload
+- [ ] Add error handling and retry logic for webhook failures
+
+### Frontend Polling
+- [ ] Update Instruments.tsx to use async generation pattern
+- [ ] Implement job status polling (every 5 seconds)
+- [ ] Display audio player when job status = "completed"
+- [ ] Add error handling for failed jobs
+
+### Testing
+- [ ] Test webhook endpoint with mock payloads
+- [ ] Test full async generation workflow
+- [ ] Verify audio player displays after completion
+- [ ] Test error scenarios (webhook failure, generation failure)
