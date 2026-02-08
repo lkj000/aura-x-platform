@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { storagePut } from './storage';
+import crypto from 'crypto';
 
 /**
  * Modal.com API Client
@@ -106,13 +108,27 @@ export async function generateMusic(params: MusicGenerationParams): Promise<Musi
       seed: params.seed,
     });
     
-    // Modal returns audio as base64, we need to handle it
+    // Modal returns audio as base64, upload to S3 for persistence
     if (response.data.status === 'success' && response.data.audio_base64) {
-      // For now, return as processing - in production, upload to S3 and return URL
+      console.log('[ModalClient] Generation successful, uploading to S3...');
+      
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(response.data.audio_base64, 'base64');
+      
+      // Generate unique filename
+      const timestamp = Date.now();
+      const randomId = crypto.randomBytes(8).toString('hex');
+      const filename = `generated-music/${timestamp}-${randomId}.wav`;
+      
+      // Upload to S3
+      const { url: audioUrl } = await storagePut(filename, audioBuffer, 'audio/wav');
+      
+      console.log('[ModalClient] Audio uploaded to S3:', audioUrl);
+      
       return {
-        jobId: `modal-${Date.now()}`,
+        jobId: `modal-${timestamp}`,
         status: 'completed',
-        audioUrl: `data:audio/wav;base64,${response.data.audio_base64}`,
+        audioUrl,
         processingTime: 0,
       };
     }

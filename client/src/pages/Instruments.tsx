@@ -89,6 +89,37 @@ export default function Instruments() {
     utils.presetFavorites.list.invalidate();
   };
 
+  const generateAutonomousMutation = trpc.generate.autonomous.useMutation({
+    onSuccess: (data) => {
+      console.log('[Instruments] Autonomous workflow complete:', data);
+      setIsGenerating(false);
+      setGenerationProgress(100);
+      
+      if (data.audioUrl) {
+        setGeneratedAudio({
+          url: data.audioUrl,
+          duration: 30,
+          generationId: data.generationId || 0,
+        });
+        loadWaveform(data.audioUrl);
+      }
+      
+      toast({
+        title: data.success ? 'Autonomous Generation Complete!' : 'Best Attempt Complete',
+        description: `Score: ${data.finalScore}/100 after ${data.attempts} attempts`,
+        variant: data.success ? 'default' : 'destructive',
+      });
+    },
+    onError: (error) => {
+      setIsGenerating(false);
+      toast({
+        title: 'Autonomous Workflow Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const generateMusicMutation = trpc.generate.music.useMutation({
     onSuccess: (data) => {
       console.log('[Instruments] Generation started:', data);
@@ -196,51 +227,24 @@ export default function Instruments() {
     setGeneratedAudio(null);
 
     if (autonomousMode) {
-      // Call orchestration agent for Level 5 autonomous workflow
-      try {
-        const response = await fetch('http://localhost:8000/workflow', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            goal: params.prompt,
-            user_id: 1, // TODO: Get from auth context
-            parameters: {
-              tempo: params.tempo,
-              key: params.key,
-              mode: params.mode,
-              duration: params.duration,
-              seed: params.seed,
-              temperature: params.temperature,
-              topK: params.topK,
-              topP: params.topP,
-              cfgScale: params.cfgScale,
-              generationMode: params.generationMode,
-            },
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Orchestration agent request failed');
-        }
-
-        const result = await response.json();
-        
-        toast({
-          title: 'Autonomous Workflow Started',
-          description: `Workflow ID: ${result.workflow_id}`,
-        });
-
-        // TODO: Poll workflow status and update UI
-        setIsGenerating(false);
-        setGenerationProgress(100);
-      } catch (error) {
-        setIsGenerating(false);
-        toast({
-          title: 'Orchestration Failed',
-          description: error instanceof Error ? error.message : 'Failed to start autonomous workflow. Make sure orchestration agent is running on port 8000.',
-          variant: 'destructive',
-        });
-      }
+      // Call autonomous workflow with quality scoring loop
+      generateAutonomousMutation.mutate({
+        prompt: params.prompt,
+        parameters: {
+          tempo: params.tempo,
+          key: params.key,
+          mode: params.mode,
+          duration: params.duration,
+          seed: params.seed,
+          temperature: params.temperature,
+          topK: params.topK,
+          topP: params.topP,
+          cfgScale: params.cfgScale,
+          generationMode: params.generationMode,
+        },
+        maxAttempts: 3,
+        targetScore: 80,
+      });
     } else {
       // Manual mode: direct Modal generation
       generateMusicMutation.mutate({

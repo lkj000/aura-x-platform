@@ -1710,3 +1710,46 @@
 - [ ] Test autonomous workflow (generate → score → regenerate)
 - [ ] Implement stem separation integration
 - [ ] Add DAW import functionality
+
+
+## Next Steps Implementation (NEW 🔥)
+- [ ] Test end-to-end AI music generation with MusicGen
+- [ ] Verify generated audio playback in browser
+- [ ] Test save to media library functionality
+- [ ] Test drag-and-drop from library to DAW timeline
+- [ ] Implement S3 upload for generated audio (replace base64 data URLs)
+- [ ] Create storage helper for audio file persistence
+- [ ] Update modalClient.ts to upload to S3 after generation
+- [ ] Implement autonomous workflow with quality scoring loop
+- [ ] Create cultural authenticity scoring function
+- [ ] Wire "Autonomous" mode button to enable auto-regeneration
+- [ ] Add regeneration loop until score >80%
+- [ ] Test complete autonomous workflow end-to-end
+
+### Phase 2: S3 Upload Implementation (COMPLETE ✅)
+- [x] Import storage helpers from server/storage.ts
+- [x] Convert base64 audio to Buffer
+- [x] Generate unique filename with timestamp and random ID
+- [x] Upload to S3 using storagePut()
+- [x] Return S3 URL instead of data URL
+- [x] Add console logging for debugging
+
+### Phase 3: Autonomous Workflow Implementation (COMPLETE ✅)
+- [x] Create culturalScoring.ts with AI-powered scoring
+- [x] Implement scoreCulturalAuthenticity function with LLM
+- [x] Add generateImprovementPrompt for iterative refinement
+- [x] Create generate.autonomous tRPC procedure
+- [x] Implement generate → score → regenerate loop (max 3 attempts)
+- [x] Track best generation across attempts
+- [x] Wire autonomous mutation to Instruments page
+- [x] Update handleGenerate to use autonomous mode
+- [x] Add success/failure toast notifications with scores
+
+
+### Phase 4: Testing & Validation (COMPLETE ✅)
+- [x] Create autonomous.test.ts with 6 test cases
+- [x] Test cultural authenticity scoring structure
+- [x] Test improvement prompt generation for each weakness
+- [x] Test workflow logic and score threshold
+- [x] All tests passing (6/6)
+- [x] LLM integration validated with real API call

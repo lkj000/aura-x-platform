@@ -203,6 +203,146 @@ export const appRouter = router({
         }
       }),
 
+    autonomous: protectedProcedure
+      .input(z.object({
+        prompt: z.string(),
+        projectId: z.number().optional(),
+        parameters: z.object({
+          tempo: z.number().optional(),
+          key: z.string().optional(),
+          mode: z.string().optional(),
+          instruments: z.array(z.string()).optional(),
+          duration: z.number().optional(),
+          seed: z.number().optional(),
+          temperature: z.number().optional(),
+          topK: z.number().optional(),
+          topP: z.number().optional(),
+          cfgScale: z.number().optional(),
+          generationMode: z.enum(['creative', 'production']).optional(),
+        }).optional(),
+        maxAttempts: z.number().default(3),
+        targetScore: z.number().default(80),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { scoreCulturalAuthenticity, generateImprovementPrompt } = await import('./culturalScoring');
+        
+        let attempt = 0;
+        let bestGeneration: any = null;
+        let bestScore = 0;
+        let currentPrompt = input.prompt;
+        
+        console.log('[Autonomous Workflow] Starting with target score:', input.targetScore);
+        
+        while (attempt < input.maxAttempts) {
+          attempt++;
+          console.log(`[Autonomous Workflow] Attempt ${attempt}/${input.maxAttempts}`);
+          
+          // Create generation record
+          const generation = await db.createGeneration({
+            userId: ctx.user.id,
+            projectId: input.projectId,
+            type: "music",
+            prompt: currentPrompt,
+            parameters: input.parameters as any,
+            status: "pending",
+          });
+          
+          try {
+            // Generate music
+            const modalResponse = await modalClient.generateMusic({
+              prompt: currentPrompt,
+              tempo: input.parameters?.tempo,
+              key: input.parameters?.key,
+              mode: input.parameters?.mode,
+              instruments: input.parameters?.instruments,
+              duration: input.parameters?.duration,
+              seed: input.parameters?.seed ? input.parameters.seed + attempt : undefined,
+              temperature: input.parameters?.temperature,
+              topK: input.parameters?.topK,
+              topP: input.parameters?.topP,
+              cfgScale: input.parameters?.cfgScale,
+              generationMode: input.parameters?.generationMode || 'creative',
+            });
+            
+            // Update generation
+            await db.updateGeneration(generation.id, {
+              workflowId: modalResponse.jobId,
+              status: modalResponse.status === 'completed' ? 'completed' : 'processing',
+              resultUrl: modalResponse.audioUrl,
+              completedAt: modalResponse.status === 'completed' ? new Date() : undefined,
+            });
+            
+            // Score the generation
+            if (modalResponse.audioUrl) {
+              const score = await scoreCulturalAuthenticity(
+                modalResponse.audioUrl,
+                currentPrompt,
+                input.parameters || {}
+              );
+              
+              console.log(`[Autonomous Workflow] Attempt ${attempt} score:`, score.overall);
+              
+              // Update generation with score
+              await db.updateGeneration(generation.id, {
+                culturalScore: score.overall.toString(),
+              });
+              
+              // Track best generation
+              if (score.overall > bestScore) {
+                bestScore = score.overall;
+                bestGeneration = {
+                  ...generation,
+                  resultUrl: modalResponse.audioUrl,
+                  culturalScore: score.overall.toString(),
+                  score,
+                };
+              }
+              
+              // Check if we met the target
+              if (score.overall >= input.targetScore) {
+                console.log('[Autonomous Workflow] Target score achieved!');
+                return {
+                  success: true,
+                  generationId: generation.id,
+                  attempts: attempt,
+                  finalScore: score.overall,
+                  audioUrl: modalResponse.audioUrl,
+                  score,
+                };
+              }
+              
+              // Generate improvement prompt for next attempt
+              if (attempt < input.maxAttempts) {
+                currentPrompt = generateImprovementPrompt(
+                  input.prompt,
+                  score,
+                  input.parameters || {}
+                );
+                console.log('[Autonomous Workflow] Improved prompt:', currentPrompt);
+              }
+            }
+          } catch (error) {
+            console.error(`[Autonomous Workflow] Attempt ${attempt} failed:`, error);
+            await db.updateGeneration(generation.id, {
+              status: 'failed',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+        
+        // Return best generation if target not met
+        console.log('[Autonomous Workflow] Max attempts reached. Best score:', bestScore);
+        return {
+          success: false,
+          generationId: bestGeneration?.id,
+          attempts: input.maxAttempts,
+          finalScore: bestScore,
+          audioUrl: bestGeneration?.resultUrl,
+          score: bestGeneration?.score,
+          message: `Target score not achieved. Best score: ${bestScore}/${input.targetScore}`,
+        };
+      }),
+
     status: protectedProcedure
       .input(z.object({ generationId: z.number() }))
       .query(async ({ input }) => {
