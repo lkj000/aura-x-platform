@@ -147,10 +147,43 @@ export async function separateStems(params: StemSeparationParams): Promise<StemS
   try {
     console.log('[ModalClient] Separating stems for:', params.audioUrl);
     
-    const response = await modalClient.post<StemSeparationResponse>('/separate_stems', {
+    const response = await modalClient.post('/separate_stems', {
       audio_url: params.audioUrl,
       stem_types: params.stemTypes || ['vocals', 'drums', 'bass', 'other'],
     });
+    
+    // Modal returns stems as base64, upload to S3 for persistence
+    if (response.data.status === 'success' && response.data.stems) {
+      console.log('[ModalClient] Stem separation successful, uploading to S3...');
+      
+      const uploadedStems = await Promise.all(
+        Object.entries(response.data.stems).map(async ([stemType, base64Data]: [string, any]) => {
+          // Convert base64 to buffer
+          const stemBuffer = Buffer.from(base64Data, 'base64');
+          
+          // Generate unique filename
+          const timestamp = Date.now();
+          const randomId = crypto.randomBytes(8).toString('hex');
+          const filename = `stems/${timestamp}-${randomId}-${stemType}.wav`;
+          
+          // Upload to S3
+          const { url: stemUrl } = await storagePut(filename, stemBuffer, 'audio/wav');
+          
+          console.log(`[ModalClient] ${stemType} stem uploaded to S3:`, stemUrl);
+          
+          return {
+            type: stemType,
+            url: stemUrl,
+          };
+        })
+      );
+      
+      return {
+        jobId: `stems-${Date.now()}`,
+        status: 'completed',
+        stems: uploadedStems,
+      };
+    }
     
     return response.data;
   } catch (error) {

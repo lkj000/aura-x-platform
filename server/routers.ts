@@ -230,6 +230,8 @@ export const appRouter = router({
         let bestGeneration: any = null;
         let bestScore = 0;
         let currentPrompt = input.prompt;
+        const allScores: any[] = [];
+        const allPrompts: string[] = [input.prompt];
         
         console.log('[Autonomous Workflow] Starting with target score:', input.targetScore);
         
@@ -287,6 +289,9 @@ export const appRouter = router({
                 culturalScore: score.overall.toString(),
               });
               
+              // Track all scores for progress visualization
+              allScores.push(score);
+              
               // Track best generation
               if (score.overall > bestScore) {
                 bestScore = score.overall;
@@ -308,6 +313,9 @@ export const appRouter = router({
                   finalScore: score.overall,
                   audioUrl: modalResponse.audioUrl,
                   score,
+                  allScores,
+                  allPrompts,
+                  finalPrompt: currentPrompt,
                 };
               }
               
@@ -318,6 +326,7 @@ export const appRouter = router({
                   score,
                   input.parameters || {}
                 );
+                allPrompts.push(currentPrompt);
                 console.log('[Autonomous Workflow] Improved prompt:', currentPrompt);
               }
             }
@@ -339,6 +348,9 @@ export const appRouter = router({
           finalScore: bestScore,
           audioUrl: bestGeneration?.resultUrl,
           score: bestGeneration?.score,
+          allScores,
+          allPrompts,
+          finalPrompt: currentPrompt,
           message: `Target score not achieved. Best score: ${bestScore}/${input.targetScore}`,
         };
       }),

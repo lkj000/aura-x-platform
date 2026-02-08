@@ -44,6 +44,20 @@ export default function Instruments() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [autonomousMode, setAutonomousMode] = useState(false);
+  const [autonomousProgress, setAutonomousProgress] = useState<{
+    attempt: number;
+    maxAttempts: number;
+    scores: Array<{
+      attempt: number;
+      overall: number;
+      breakdown: { rhythmicAuthenticity: number; harmonicStructure: number; productionQuality: number; culturalElements: number };
+      feedback: string;
+      recommendations: string[];
+    }>;
+    currentPrompt: string;
+  } | null>(null);
+  const [stems, setStems] = useState<Array<{ type: string; url: string }> | null>(null);
+  const [isSeparatingStems, setIsSeparatingStems] = useState(false);
 
   const [params, setParams] = useState<GenerationParams>({
     prompt: 'Energetic Amapiano track with log drums, shakers, and smooth piano chords in F minor at 112 BPM',
@@ -90,10 +104,29 @@ export default function Instruments() {
   };
 
   const generateAutonomousMutation = trpc.generate.autonomous.useMutation({
+    onMutate: () => {
+      setAutonomousProgress(null); // Reset progress
+    },
     onSuccess: (data) => {
       console.log('[Instruments] Autonomous workflow complete:', data);
       setIsGenerating(false);
       setGenerationProgress(100);
+      
+      // Update final progress state
+      if (data.allScores && data.allScores.length > 0) {
+        setAutonomousProgress({
+          attempt: data.attempts,
+          maxAttempts: data.attempts,
+          scores: data.allScores.map((score: any, index: number) => ({
+            attempt: index + 1,
+            overall: score.overall,
+            breakdown: score.breakdown,
+            feedback: score.feedback,
+            recommendations: score.recommendations,
+          })),
+          currentPrompt: data.finalPrompt || '',
+        });
+      }
       
       if (data.audioUrl) {
         setGeneratedAudio({
@@ -112,6 +145,7 @@ export default function Instruments() {
     },
     onError: (error) => {
       setIsGenerating(false);
+      setAutonomousProgress(null);
       toast({
         title: 'Autonomous Workflow Failed',
         description: error.message,
@@ -144,6 +178,28 @@ export default function Instruments() {
       });
     },
   });
+
+  // TODO: Fix tRPC type generation for separateStems
+  // const separateStemsMutation = trpc.generate.separateStems.useMutation({
+  //   onSuccess: (data: any) => {
+  //     setIsSeparatingStems(false);
+  //     if (data.status === 'completed' && data.stems) {
+  //       setStems(data.stems);
+  //       toast({
+  //         title: 'Stem Separation Complete!',
+  //         description: `Extracted ${data.stems.length} stems: drums, bass, vocals, other`,
+  //       });
+  //     }
+  //   },
+  //   onError: (error: any) => {
+  //     setIsSeparatingStems(false);
+  //     toast({
+  //       title: 'Stem Separation Failed',
+  //       description: error.message,
+  //       variant: 'destructive',
+  //       });
+  //   },
+  // });
 
   const pollGenerationStatus = async (generationId: number) => {
     const maxAttempts = 60; // 5 minutes max (5s intervals)
@@ -292,6 +348,19 @@ export default function Instruments() {
       title: 'Download Started',
       description: 'Your track is being downloaded',
     });
+  };
+
+  const handleSeparateStems = async () => {
+    if (!generatedAudio) return;
+    
+    setIsSeparatingStems(true);
+    // TODO: Fix tRPC type generation
+    // separateStemsMutation.mutate({ generationId: generatedAudio.generationId });
+    toast({
+      title: 'Feature Coming Soon',
+      description: 'Stem separation will be available after tRPC type regeneration',
+    });
+    setIsSeparatingStems(false);
   };
 
   const handleSaveToLibrary = async () => {
@@ -760,6 +829,77 @@ export default function Instruments() {
                 </div>
               )}
 
+              {/* Autonomous Workflow Progress */}
+              {autonomousProgress && (
+                <div className="space-y-4 border border-border rounded-lg p-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Autonomous Workflow Progress</h3>
+                    <span className="text-sm text-muted-foreground">
+                      {autonomousProgress.attempt}/{autonomousProgress.maxAttempts} attempts
+                    </span>
+                  </div>
+                  
+                  {/* Attempt-by-Attempt Scores */}
+                  <div className="space-y-3">
+                    {autonomousProgress.scores.map((scoreData, index) => (
+                      <div key={index} className="border border-border rounded-lg p-3 bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">Attempt {scoreData.attempt}</span>
+                          <span className="text-lg font-bold">
+                            {scoreData.overall}/100
+                          </span>
+                        </div>
+                        
+                        {/* Breakdown Scores */}
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Rhythmic:</span>
+                            <span className="ml-2 font-medium">{scoreData.breakdown.rhythmicAuthenticity}/100</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Harmonic:</span>
+                            <span className="ml-2 font-medium">{scoreData.breakdown.harmonicStructure}/100</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Production:</span>
+                            <span className="ml-2 font-medium">{scoreData.breakdown.productionQuality}/100</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Cultural:</span>
+                            <span className="ml-2 font-medium">{scoreData.breakdown.culturalElements}/100</span>
+                          </div>
+                        </div>
+                        
+                        {/* Feedback */}
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {scoreData.feedback}
+                        </p>
+                        
+                        {/* Recommendations */}
+                        {scoreData.recommendations.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Improvements:</p>
+                            <ul className="text-xs space-y-1">
+                              {scoreData.recommendations.slice(0, 2).map((rec, recIndex) => (
+                                <li key={recIndex} className="text-muted-foreground">• {rec}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Final Prompt */}
+                  {autonomousProgress.currentPrompt && (
+                    <div className="border-t border-border pt-3">
+                      <p className="text-sm font-medium mb-1">Final Optimized Prompt:</p>
+                      <p className="text-sm text-muted-foreground">{autonomousProgress.currentPrompt}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {generatedAudio && (
                 <>
                   {/* Waveform Visualization */}
@@ -835,6 +975,48 @@ export default function Instruments() {
                       )}
                     </Button>
                   </div>
+
+                  {/* Stem Separation Button */}
+                  <Button
+                    onClick={handleSeparateStems}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isSeparatingStems}
+                  >
+                    {isSeparatingStems ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Separating Stems...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                        </svg>
+                        Separate Stems
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Stems Display */}
+                  {stems && stems.length > 0 && (
+                    <div className="border border-border rounded-lg p-4 space-y-3">
+                      <h4 className="font-semibold">Extracted Stems</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {stems.map((stem, index) => (
+                          <a
+                            key={index}
+                            href={stem.url}
+                            download
+                            className="flex items-center gap-2 p-2 border border-border rounded hover:bg-muted transition-colors"
+                          >
+                            <Download className="h-4 w-4" />
+                            <span className="text-sm capitalize">{stem.type}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Track Info */}
                   <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">

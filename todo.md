@@ -1753,3 +1753,38 @@
 - [x] Test workflow logic and score threshold
 - [x] All tests passing (6/6)
 - [x] LLM integration validated with real API call
+
+
+## New Session: Research Integration + Next Steps Implementation
+
+### Phase 1: Research Review & Critique
+- [x] Analyze latent.space adversarial reasoning article
+- [x] Analyze Pluribus AI poker paper (Science 2019)
+- [x] Document key insights for autonomous music AI
+- [x] Design multi-agent strategic reasoning framework
+
+### Phase 2: Progress Visualization
+- [x] Add attempt-by-attempt score display in UI
+- [x] Show improvement suggestions between attempts
+- [x] Add real-time progress indicators
+- [x] Display breakdown scores (rhythmic, harmonic, production, cultural)
+
+### Phase 3: Stem Separation Integration
+- [x] Wire Modal Demucs endpoint to frontend
+- [x] Add stem separation button to generated tracks
+- [x] Display extracted stems (drums, bass, vocals, other)
+- [x] Enable download of individual stems
+- [ ] Fix tRPC type generation issue (separateStems not recognized)
+- [ ] Test with real generated audio
+
+### Phase 4: Multi-Agent Strategic Reasoning
+- [ ] Implement CFR-inspired self-play for music generation
+- [ ] Add depth-limited search with multiple continuation strategies
+- [ ] Model listener perspectives (casual, critic, dancer)
+- [ ] Create dynamic composition engine with strategic decision-making
+
+### Phase 5: Testing & Delivery
+- [ ] Test autonomous mode end-to-end
+- [ ] Test stem separation with generated tracks
+- [ ] Validate multi-agent reasoning improvements
+- [ ] Save final checkpoint
