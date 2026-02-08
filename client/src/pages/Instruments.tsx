@@ -35,6 +35,7 @@ export default function Instruments() {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationPhase, setGenerationPhase] = useState<'idle' | 'loading' | 'generating' | 'uploading' | 'finalizing'>('idle');
   const [generatedAudio, setGeneratedAudio] = useState<{
     url: string;
     duration: number;
@@ -236,8 +237,23 @@ export default function Instruments() {
             variant: 'destructive',
           });
         } else if (generation.status === 'processing') {
-          // Update progress
-          setGenerationProgress(Math.min(90, (attempts / maxAttempts) * 100));
+          // Calculate progress based on elapsed time (7-10 min generation)
+          const elapsedSeconds = attempts * 5; // 5 second intervals
+          const estimatedTotalSeconds = 540; // 9 minutes average
+          const progressPercent = Math.min(90, (elapsedSeconds / estimatedTotalSeconds) * 100);
+          
+          // Determine phase based on progress
+          if (progressPercent < 20) {
+            setGenerationPhase('loading');
+          } else if (progressPercent < 70) {
+            setGenerationPhase('generating');
+          } else if (progressPercent < 85) {
+            setGenerationPhase('uploading');
+          } else {
+            setGenerationPhase('finalizing');
+          }
+          
+          setGenerationProgress(progressPercent);
 
           attempts++;
           if (attempts < maxAttempts) {
@@ -279,6 +295,7 @@ export default function Instruments() {
   const handleGenerate = async () => {
     setIsGenerating(true);
     setGenerationProgress(0);
+    setGenerationPhase('loading');
     setGeneratedAudio(null);
 
     if (autonomousMode) {
@@ -759,16 +776,12 @@ export default function Instruments() {
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        {generationProgress < 10
-                          ? 'Initializing AI model...'
-                          : generationProgress < 30
-                          ? 'Loading MusicGen weights...'
-                          : generationProgress < 60
-                          ? 'Generating audio with AI...'
-                          : generationProgress < 90
-                          ? 'Applying cultural authenticity...'
-                          : 'Finalizing track...'}
+                      <span className="text-muted-foreground font-medium">
+                        {generationPhase === 'loading' && '🔄 Loading Model Weights...'}
+                        {generationPhase === 'generating' && '🎵 Generating Audio with AI...'}
+                        {generationPhase === 'uploading' && '☁️ Uploading to S3...'}
+                        {generationPhase === 'finalizing' && '✨ Finalizing Track...'}
+                        {generationPhase === 'idle' && 'Initializing...'}
                       </span>
                       <span className="font-medium">{Math.round(generationProgress)}%</span>
                     </div>
@@ -779,7 +792,7 @@ export default function Instruments() {
                       <Loader2 className="h-3 w-3 animate-spin" />
                       <span>
                         {generationProgress < 90
-                          ? `Estimated time: ${Math.ceil((100 - generationProgress) * 0.5)}s`
+                          ? `Estimated time remaining: ${Math.ceil((540 - (generationProgress / 100 * 540)) / 60)} min`
                           : 'Almost done...'}
                       </span>
                     </div>

@@ -1977,3 +1977,38 @@
 - [x] Confirm 80/100 threshold logic
 - [x] Test max 3 attempts limit
 - [x] Verify final optimized prompt display
+
+
+## Next Steps Implementation: Real Testing + Progress Indicators + History UI
+
+### Step 1: Test Real Generation End-to-End
+- [ ] Navigate to /instruments page in browser
+- [ ] Trigger real music generation with Modal backend
+- [ ] Monitor Modal logs for generation progress
+- [ ] Verify S3 upload completes successfully
+- [ ] Confirm webhook callback updates database
+- [ ] Verify frontend polling displays status updates
+- [ ] Confirm audio player appears with S3 URL
+- [ ] Test audio playback in browser
+
+### Step 2: Add Generation Progress Indicators
+- [x] Update Modal backend to report progress phases
+- [x] Add progress percentage to webhook payload
+- [x] Update frontend polling to display progress phases
+- [x] Add progress bar with phase labels (Model Loading, Generating, Uploading, Finalizing)
+- [x] Show estimated time remaining based on phase
+- [x] Add visual feedback for each phase transition
+
+### Step 3: Implement Generation History UI
+- [x] Create GenerationHistory page component
+- [x] Add route to App.tsx (/history)
+- [x] Query all user generations from database
+- [x] Display generation cards with audio player
+- [x] Show cultural score and parameters for each generation
+- [x] Add "Regenerate with same settings" button (Replay/Remix)
+- [x] Implement playback controls for each generation
+- [x] Add filtering by date, score, and status (All/Favorites/Recent)
+- [x] Add search by prompt text
+- [x] Bonus: Community rating system with star ratings
+- [x] Bonus: Audio visualization
+- [x] Bonus: Stem separation and DAW import
