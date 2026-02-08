@@ -159,6 +159,15 @@ def generate_music(request_data: dict):
         
         # Upload to S3
         s3_bucket = os.environ.get("S3_BUCKET")
+        
+        # Debug logging
+        print(f"[S3 Upload] Bucket: {s3_bucket}")
+        print(f"[S3 Upload] Key: {s3_key}")
+        print(f"[S3 Upload] AWS Access Key ID: {os.environ.get('AWS_ACCESS_KEY_ID', 'NOT_SET')[:10]}...")
+        
+        if not s3_bucket:
+            raise ValueError("S3_BUCKET environment variable is not set. Please configure Modal secrets.")
+        
         s3_client.put_object(
             Bucket=s3_bucket,
             Key=s3_key,
@@ -166,6 +175,8 @@ def generate_music(request_data: dict):
             ContentType='audio/wav',
             ACL='public-read'
         )
+        
+        print(f"[S3 Upload] Successfully uploaded to S3: {s3_key}")
         
         # Construct public URL
         s3_url = f"https://{s3_bucket}.s3.{os.environ.get('S3_REGION', 'us-east-1')}.amazonaws.com/{s3_key}"
