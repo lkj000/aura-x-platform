@@ -1892,3 +1892,35 @@
 - [ ] Test stem separation on generated audio
 - [ ] Verify DAW timeline integration
 - [ ] Document all working features
+
+
+## New Session: Modal Secrets & Webhook Implementation
+
+### Phase 1: Verify Modal Secrets Configuration
+- [ ] Run `modal secret list` to check if aura-x-secrets exists
+- [ ] Verify secret name in modal_deploy.py decorator matches exactly
+- [ ] Check if environment variables are accessible in Modal function
+- [ ] Add debug logging to print all available env vars in Modal function
+- [ ] Fix secret configuration if needed
+
+### Phase 2: Test with Base64 Data URLs
+- [x] Temporarily remove S3 upload code from modal_deploy.py
+- [x] Return base64 data URLs instead of S3 URLs
+- [x] Redeploy Modal backend
+- [ ] Test generation end-to-end to verify Modal backend works
+- [ ] Confirm audio player displays and playback works
+- [ ] Document successful generation workflow
+
+### Phase 3: Implement Webhook Pattern
+- [ ] Create `/api/modal/webhook` endpoint in server/routers.ts
+- [ ] Update Modal backend to call webhook when generation completes
+- [ ] Implement job status tracking in database
+- [ ] Update frontend to poll for job status instead of long HTTP wait
+- [ ] Test webhook delivery and status updates
+
+### Phase 4: Add S3 Upload Back
+- [ ] Re-add S3 upload code to modal_deploy.py
+- [ ] Verify Modal secrets are accessible
+- [ ] Test complete workflow with S3 upload
+- [ ] Confirm audio player displays S3 URLs
+- [ ] Test autonomous workflow with quality scoring
