@@ -404,6 +404,60 @@ export const appRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       return db.getUserGenerations(ctx.user.id);
     }),
+
+    // Webhook endpoint for Modal completion callbacks
+    webhook: publicProcedure
+      .input(z.object({
+        generationId: z.number(),
+        jobId: z.string(),
+        status: z.enum(['completed', 'failed']),
+        audioUrl: z.string().optional(),
+        error: z.string().optional(),
+        culturalScore: z.number().optional(),
+        processingTime: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        console.log('[Webhook] Received Modal completion callback:', input);
+        
+        try {
+          // Update generation in database
+          await db.updateGeneration(input.generationId, {
+            status: input.status,
+            resultUrl: input.audioUrl,
+            errorMessage: input.error,
+            culturalScore: input.culturalScore?.toString(),
+            processingTime: input.processingTime,
+            completedAt: input.status === 'completed' ? new Date() : undefined,
+          });
+          
+          console.log('[Webhook] Updated generation:', input.generationId);
+          return { success: true };
+        } catch (error) {
+          console.error('[Webhook] Failed to update generation:', error);
+          throw error;
+        }
+      }),
+
+    // Get job status by generation ID
+    getJobStatus: protectedProcedure
+      .input(z.object({ generationId: z.number() }))
+      .query(async ({ input }) => {
+        const generation = await db.getGenerationById(input.generationId);
+        if (!generation) {
+          throw new Error('Generation not found');
+        }
+        
+        return {
+          generationId: generation.id,
+          status: generation.status,
+          audioUrl: generation.resultUrl,
+          culturalScore: generation.culturalScore ? parseFloat(generation.culturalScore) : undefined,
+          processingTime: generation.processingTime,
+          errorMessage: generation.errorMessage,
+          createdAt: generation.createdAt,
+          completedAt: generation.completedAt,
+        };
+      }),
   }),
 
   // Generation History router

@@ -76,7 +76,7 @@ export interface MasteringResponse {
 /**
  * Generate music using AI
  */
-export async function generateMusic(params: MusicGenerationParams): Promise<MusicGenerationResponse> {
+export async function generateMusic(params: MusicGenerationParams, generationId?: number): Promise<MusicGenerationResponse> {
   try {
     console.log('[ModalClient] Generating music with params:', params);
     
@@ -97,6 +97,9 @@ export async function generateMusic(params: MusicGenerationParams): Promise<Musi
       };
     }
     
+    // Construct webhook URL for Modal to call when generation completes
+    const webhookUrl = generationId ? `${process.env.VITE_APP_URL || 'http://localhost:3000'}/api/trpc/generate.webhook` : undefined;
+    
     // Call the deployed Modal endpoint
     const response = await modalClient.post('/generate_music', {
       prompt: params.prompt,
@@ -106,6 +109,8 @@ export async function generateMusic(params: MusicGenerationParams): Promise<Musi
       top_p: params.topP || 0.0,
       cfg_scale: params.cfgScale || 3.0,
       seed: params.seed,
+      webhook_url: webhookUrl,
+      generation_id: generationId,
     });
     
     // Modal returns audio as base64, upload to S3 for persistence

@@ -206,23 +206,23 @@ export default function Instruments() {
 
     const poll = async () => {
       try {
-        const generation = await utils.client.generate.status.query({ generationId });
+        const generation = await utils.client.generate.getJobStatus.query({ generationId });
 
         if (!generation) {
           throw new Error('Generation not found');
         }
 
-        if (generation.status === 'completed' && generation.resultUrl) {
+        if (generation.status === 'completed' && generation.audioUrl) {
           setIsGenerating(false);
           setGenerationProgress(100);
           setGeneratedAudio({
-            url: generation.resultUrl,
+            url: generation.audioUrl,
             duration: 30, // TODO: Get from generation
-            generationId: generation.id,
+            generationId: generation.generationId,
           });
           
           // Load waveform
-          loadWaveform(generation.resultUrl);
+          loadWaveform(generation.audioUrl);
 
           toast({
             title: 'Generation Complete!',

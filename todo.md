@@ -1929,22 +1929,22 @@
 ## Phase 3: Webhook Pattern Implementation (Current)
 
 ### Backend Webhook Endpoint
-- [ ] Create `/api/modal/webhook` POST endpoint in server/routers.ts
-- [ ] Add database table for generation jobs (id, job_id, status, audio_url, created_at, completed_at)
-- [ ] Implement webhook handler to update job status
-- [ ] Add job status query endpoint `/api/trpc/generate.getJobStatus`
+- [x] Create `/api/modal/webhook` POST endpoint in server/routers.ts
+- [x] Verify database table for generation jobs (existing `generations` table has all fields)
+- [x] Implement webhook handler to update job status
+- [x] Add job status query endpoint `/api/trpc/generate.getJobStatus`
 
 ### Modal Webhook Integration
-- [ ] Update modal_deploy.py to accept webhook_url parameter
-- [ ] Add webhook callback after generation completes
+- [x] Update modal_deploy.py to accept webhook_url parameter
+- [x] Add webhook callback after generation completes
 - [ ] Include job_id and audio_url in webhook payload
 - [ ] Add error handling and retry logic for webhook failures
 
 ### Frontend Polling
-- [ ] Update Instruments.tsx to use async generation pattern
-- [ ] Implement job status polling (every 5 seconds)
-- [ ] Display audio player when job status = "completed"
-- [ ] Add error handling for failed jobs
+- [x] Update Instruments.tsx to use async generation pattern
+- [x] Implement job status polling (every 5 seconds)
+- [x] Display audio player when job status = "completed"
+- [x] Add error handling for failed jobs
 
 ### Testing
 - [ ] Test webhook endpoint with mock payloads

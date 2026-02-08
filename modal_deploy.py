@@ -43,6 +43,8 @@ class GenerateMusicRequest(BaseModel):
     top_p: float = 0.0
     cfg_scale: float = 3.0
     seed: Optional[int] = None
+    webhook_url: Optional[str] = None
+    generation_id: Optional[int] = None
 
 class SeparateStemsRequest(BaseModel):
     audio_url: str
@@ -59,7 +61,10 @@ web_app = FastAPI(title="AURA-X AI Services")
 @web_app.post("/generate_music")
 def generate_music_endpoint(request: GenerateMusicRequest):
     """Generate music using MusicGen"""
-    return generate_music.remote(request.dict())
+    request_dict = request.dict()
+    webhook_url = request_dict.pop("webhook_url", None)
+    generation_id = request_dict.pop("generation_id", None)
+    return generate_music.remote(request_dict, webhook_url=webhook_url, generation_id=generation_id)
 
 @web_app.post("/separate_stems")
 def separate_stems_endpoint(request: SeparateStemsRequest):
@@ -91,7 +96,7 @@ def health_endpoint():
     volumes={"/models": model_volume},
     secrets=[modal.Secret.from_name("aura-x-secrets")],
 )
-def generate_music(request_data: dict):
+def generate_music(request_data: dict, webhook_url: str = None, generation_id: int = None):
     """
     Generate music using MusicGen model
     """
@@ -144,13 +149,34 @@ def generate_music(request_data: dict):
         
         print(f"[Generation] Successfully generated {len(audio_bytes)} bytes of audio")
     
-    return {
+    result = {
         "status": "success",
         "audio_url": audio_url,
         "sample_rate": model.sample_rate,
         "duration": request_data.get("duration", 30),
         "seed": seed,
     }
+    
+    # Call webhook if provided
+    if webhook_url and generation_id:
+        import requests
+        try:
+            webhook_payload = {
+                "generationId": generation_id,
+                "jobId": f"modal-{generation_id}",
+                "status": "completed",
+                "audioUrl": audio_url,
+                "processingTime": None,  # TODO: Track actual processing time
+            }
+            print(f"[Webhook] Calling {webhook_url} with payload: {webhook_payload}")
+            webhook_response = requests.post(webhook_url, json=webhook_payload, timeout=10)
+            webhook_response.raise_for_status()
+            print(f"[Webhook] Success: {webhook_response.status_code}")
+        except Exception as e:
+            print(f"[Webhook] Failed to call webhook: {e}")
+            # Don't fail the generation if webhook fails
+    
+    return result
 
 
 @app.function(
