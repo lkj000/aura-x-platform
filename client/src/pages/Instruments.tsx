@@ -90,6 +90,71 @@ export default function Instruments() {
   const addFavoriteMutation = trpc.presetFavorites.add.useMutation();
   const removeFavoriteMutation = trpc.presetFavorites.remove.useMutation();
 
+  // Queue management
+  const userQueueQuery = trpc.queue.getUserQueue.useQuery(undefined, {
+    refetchInterval: 5000, // Poll every 5 seconds
+    enabled: isGenerating, // Only poll when generating
+  });
+  const queueStatsQuery = trpc.queue.getUserStats.useQuery();
+  const cancelQueueMutation = trpc.queue.cancelQueuedGeneration.useMutation();
+
+  // Custom presets
+  const customPresetsQuery = trpc.customPresets.list.useQuery();
+  const createPresetMutation = trpc.customPresets.create.useMutation();
+  const [showSavePresetDialog, setShowSavePresetDialog] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [presetDescription, setPresetDescription] = useState('');
+
+  const handleSavePreset = async () => {
+    if (!presetName.trim()) {
+      toast({
+        title: 'Preset Name Required',
+        description: 'Please enter a name for your preset',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await createPresetMutation.mutateAsync({
+        name: presetName,
+        description: presetDescription,
+        category: params.generationMode,
+        style: params.mode,
+        icon: '🎵',
+        prompt: params.prompt,
+        parameters: {
+          tempo: params.tempo,
+          key: params.key,
+          duration: params.duration,
+          seed: params.seed,
+          temperature: params.temperature,
+          topK: params.topK,
+          topP: params.topP,
+          cfgScale: params.cfgScale,
+        },
+        culturalElements: [],
+        tags: [params.mode, params.generationMode],
+      });
+
+      toast({
+        title: 'Preset Saved',
+        description: `"${presetName}" has been saved to your custom presets`,
+      });
+
+      setShowSavePresetDialog(false);
+      setPresetName('');
+      setPresetDescription('');
+      utils.customPresets.list.invalidate();
+    } catch (error) {
+      toast({
+        title: 'Failed to Save Preset',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const isFavorite = (presetId: string) => {
     return presetFavoritesQuery.data?.some(fav => fav.presetId === presetId) || false;
   };
@@ -502,10 +567,11 @@ export default function Instruments() {
               <div className="space-y-3">
                 <Label>Amapiano Presets</Label>
                 <Tabs defaultValue="all" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="all">All</TabsTrigger>
                     <TabsTrigger value="production">Production</TabsTrigger>
                     <TabsTrigger value="creative">Creative</TabsTrigger>
+                    <TabsTrigger value="custom">My Presets</TabsTrigger>
                   </TabsList>
                   <TabsContent value="all" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
                     {amapianoPresets.map((preset) => (
@@ -598,6 +664,53 @@ export default function Instruments() {
                         </div>
                       </button>
                     ))}
+                  </TabsContent>
+                  <TabsContent value="custom" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
+                    {customPresetsQuery.data && customPresetsQuery.data.length > 0 ? (
+                      customPresetsQuery.data.map((preset) => (
+                        <button
+                          key={preset.id}
+                          className="w-full text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors disabled:opacity-50"
+                          onClick={() => {
+                            const presetParams = preset.parameters as any;
+                            setParams({
+                              ...params,
+                              prompt: preset.prompt,
+                              mode: preset.style,
+                              tempo: presetParams.tempo || params.tempo,
+                              key: presetParams.key || params.key,
+                              duration: presetParams.duration || params.duration,
+                              seed: presetParams.seed || params.seed,
+                              temperature: presetParams.temperature || params.temperature,
+                              topK: presetParams.topK || params.topK,
+                              topP: presetParams.topP || params.topP,
+                              cfgScale: presetParams.cfgScale || params.cfgScale,
+                            });
+                          }}
+                          disabled={isGenerating}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="text-2xl">{preset.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm">{preset.name}</div>
+                              {preset.description && (
+                                <div className="text-xs text-muted-foreground line-clamp-2">
+                                  {preset.description}
+                                </div>
+                              )}
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Used {preset.usageCount} times
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-center text-sm text-muted-foreground py-8">
+                        <p>No custom presets yet</p>
+                        <p className="text-xs mt-1">Save your favorite settings as presets!</p>
+                      </div>
+                    )}
                   </TabsContent>
                 </Tabs>
               </div>
@@ -753,24 +866,76 @@ export default function Instruments() {
               </details>
 
               {/* Generate Button */}
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating || !params.prompt}
-                className="w-full"
-                size="lg"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Track
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !params.prompt}
+                  className="flex-1"
+                  size="lg"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Track
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setShowSavePresetDialog(true)}
+                  disabled={isGenerating || !params.prompt}
+                  variant="outline"
+                  size="lg"
+                  title="Save current parameters as preset"
+                >
+                  <Save className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Save Preset Dialog */}
+              {showSavePresetDialog && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md space-y-4">
+                    <h3 className="text-lg font-semibold">Save as Custom Preset</h3>
+                    <div className="space-y-2">
+                      <Label>Preset Name *</Label>
+                      <Input
+                        value={presetName}
+                        onChange={(e) => setPresetName(e.target.value)}
+                        placeholder="e.g., My Kasi Groove"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description (Optional)</Label>
+                      <Textarea
+                        value={presetDescription}
+                        onChange={(e) => setPresetDescription(e.target.value)}
+                        placeholder="Describe this preset..."
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleSavePreset} className="flex-1">
+                        Save Preset
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowSavePresetDialog(false);
+                          setPresetName('');
+                          setPresetDescription('');
+                        }}
+                        variant="outline"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {isGenerating && (
                 <div className="space-y-3">
@@ -803,6 +968,35 @@ export default function Instruments() {
                       </span>
                     )}
                   </div>
+
+                  {/* Queue Status */}
+                  {userQueueQuery.data && userQueueQuery.data.length > 0 && (
+                    <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-border">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Queue Position:</span>
+                        <span className="font-medium">#{userQueueQuery.data[0].queuePosition}</span>
+                      </div>
+                      {userQueueQuery.data[0].estimatedWaitTime && (
+                        <div className="flex items-center justify-between text-xs mt-1">
+                          <span className="text-muted-foreground">Estimated Wait:</span>
+                          <span className="font-medium">{Math.ceil(userQueueQuery.data[0].estimatedWaitTime / 60)} min</span>
+                        </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-2 h-7 text-xs"
+                        onClick={() => {
+                          if (userQueueQuery.data && userQueueQuery.data[0]) {
+                            cancelQueueMutation.mutate({ queueId: userQueueQuery.data[0].id });
+                            setIsGenerating(false);
+                          }
+                        }}
+                      >
+                        Cancel Generation
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

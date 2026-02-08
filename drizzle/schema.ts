@@ -696,3 +696,4 @@ export const samplePackDownloads = mysqlTable('samplePackDownloads', {
 
 export type SamplePackDownload = typeof samplePackDownloads.$inferSelect;
 export type InsertSamplePackDownload = typeof samplePackDownloads.$inferInsert;
+

@@ -2012,3 +2012,41 @@
 - [x] Bonus: Community rating system with star ratings
 - [x] Bonus: Audio visualization
 - [x] Bonus: Stem separation and DAW import
+
+
+## Next Steps Implementation: End-to-End Testing + Queue Management + Preset Saving
+
+### Step 1: Test Real Generation End-to-End
+- [ ] Log in to the platform via OAuth
+- [ ] Navigate to /instruments page
+- [ ] Configure generation parameters (tempo, key, style)
+- [ ] Trigger 30-second Amapiano track generation
+- [ ] Verify progress indicators display correctly
+- [ ] Monitor webhook callback in backend logs
+- [ ] Confirm S3 upload completes
+- [ ] Verify audio player appears with S3 URL
+- [ ] Test audio playback
+- [ ] Check generation appears in /history page
+- [ ] Test replay/remix functionality
+
+### Step 2: Implement Generation Queue Management
+- [x] Create queue table in database schema (already exists)
+- [x] Add queue position tracking for generations
+- [x] Implement queue status endpoint (getUserQueue, getUserStats, cancelQueuedGeneration)
+- [x] Add queue display UI in Instruments page
+- [x] Show queue position and estimated wait time
+- [x] Handle concurrent generation requests (userQueueStats table)
+- [x] Add queue priority logic (user role-based, tier-based)
+- [x] Implement queue cancellation
+- [ ] Add queue notifications
+
+### Step 3: Implement Preset Saving
+- [x] Create presets table in database schema (customPresets table already exists)
+- [x] Add preset CRUD endpoints (create, read, update, delete)
+- [x] Add "Save as Preset" button in Instruments page
+- [x] Create preset selection dropdown (My Presets tab)
+- [x] Implement preset loading functionality
+- [ ] Add preset editing capability
+- [ ] Add preset deletion with confirmation
+- [x] Display user's saved presets
+- [ ] Add preset sharing capability (optional)
