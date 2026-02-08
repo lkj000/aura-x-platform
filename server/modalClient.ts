@@ -13,7 +13,7 @@ const MODAL_API_KEY = process.env.MODAL_API_KEY || '';  // Modal doesn't require
 
 const modalClient = axios.create({
   baseURL: MODAL_BASE_URL,
-  timeout: 120000, // 2 minutes for AI operations
+  timeout: 600000, // 10 minutes for AI operations (MusicGen can take 3-5 min)
   headers: {
     'Content-Type': 'application/json',
     ...(MODAL_API_KEY && { 'Authorization': `Bearer ${MODAL_API_KEY}` }),

@@ -201,7 +201,7 @@ export default function Instruments() {
   });
 
   const pollGenerationStatus = async (generationId: number) => {
-    const maxAttempts = 60; // 5 minutes max (5s intervals)
+    const maxAttempts = 180; // 15 minutes max (5s intervals) - Modal generation takes 7-10 minutes
     let attempts = 0;
 
     const poll = async () => {

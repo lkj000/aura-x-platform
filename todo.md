@@ -1820,3 +1820,40 @@
 - [ ] Verify all features work together
 - [ ] Document multi-agent reasoning architecture
 - [ ] Create checkpoint with complete implementation
+
+
+## New Session: Debug Generation + Real-Time Progress
+
+### Phase 1: Debug Generation Mutation
+- [x] Add console.log to handleGenerate function
+- [x] Add logging to generateAutonomousMutation callbacks
+- [x] Add logging to generateMusicMutation callbacks
+- [x] Check browser network tab for API requests
+- [x] Verify mutation is properly initialized
+- [x] Test if mutation.mutate() is being called
+- [x] **FOUND ISSUE**: Modal timeout (120s) too short for MusicGen (3-5 min)
+- [x] **FIXED**: Increased timeout to 600s (10 minutes)
+
+### Phase 2: Test Manual Mode Generation
+- [ ] Switch to Manual mode in UI
+- [ ] Generate track with simple prompt
+- [ ] Verify Modal backend receives request
+- [ ] Confirm audio generation completes
+- [ ] Test audio playback in browser
+- [ ] Verify waveform visualization loads
+
+### Phase 3: Real-Time Progress Streaming
+- [ ] Design SSE endpoint for autonomous workflow progress
+- [ ] Implement server-side progress events
+- [ ] Create EventSource client in frontend
+- [ ] Display live progress updates (attempt 1/3, scoring, etc.)
+- [ ] Handle connection errors and reconnection
+- [ ] Test with real autonomous generation
+
+### Phase 4: Complete Integration Testing
+- [ ] Test full autonomous workflow end-to-end
+- [ ] Verify quality scoring loop works
+- [ ] Test stem separation on generated audio
+- [ ] Verify all 4 stems download correctly
+- [ ] Test import to DAW timeline
+- [ ] Document final architecture
