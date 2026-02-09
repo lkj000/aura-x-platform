@@ -805,6 +805,7 @@ export const appRouter = router({
         parameters: z.any().optional(),
         culturalElements: z.array(z.string()).optional(),
         tags: z.array(z.string()).optional(),
+        isPublic: z.boolean().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...updates } = input;

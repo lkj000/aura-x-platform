@@ -2155,3 +2155,33 @@
 - [ ] Test preset saving
 - [ ] Test preset sharing
 - [ ] Test notification sound
+
+
+## Current Implementation Tasks
+
+### Step 1: Add Public/Private Toggle to Preset Edit Dialog
+- [x] Add isPublic switch to Edit Preset dialog
+- [x] Update edit preset mutation to include isPublic field
+- [x] Show current public/private status in dialog
+- [x] Add tooltip explaining public presets appear in Community tab
+- [x] Test toggling between public and private
+
+### Step 2: Implement Preset Search and Filtering
+- [x] Add search input to Community Presets tab
+- [x] Implement client-side search by preset name and description
+- [x] Add category filter dropdown (All, Production, Creative, etc.)
+- [x] Add sort options (Most Popular, Recently Added, Most Imported)
+- [x] Show "No results" state when search returns empty
+- [x] Persist search/filter state during session (via React state)
+
+### Step 3: Test Real Generation End-to-End
+- [ ] Log in to platform via OAuth
+- [ ] Navigate to /instruments page
+- [ ] Generate a 30-second Amapiano track
+- [ ] Verify progress indicators update correctly
+- [ ] Verify webhook callback updates status
+- [ ] Verify S3 upload and audio URL
+- [ ] Verify queue notifications display
+- [ ] Verify generation appears in history page
+- [ ] Test preset saving and loading
+- [ ] Test preset sharing and importing

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lightbulb, Lock, Edit, Trash2, Share2, Copy, Check } from 'lucide-react';
+import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lightbulb, Lock, Edit, Trash2, Share2, Copy, Check, Search } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
 import { AudioEngine } from '@/services/AudioEngine';
 import { amapianoPresets, getPresetsByCategory, type AmapianoPreset } from '@/data/amapianoPresets';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 
 type GenerationMode = 'creative' | 'production';
 
@@ -121,6 +122,38 @@ export default function Instruments() {
   const [copied, setCopied] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [presetDescription, setPresetDescription] = useState('');
+  const [presetIsPublic, setPresetIsPublic] = useState(false);
+  const [communitySearch, setCommunitySearch] = useState('');
+  const [communitySort, setCommunitySort] = useState<'popular' | 'recent' | 'imports'>('popular');
+
+  // Filter and sort community presets
+  const filteredCommunityPresets = useMemo(() => {
+    if (!communityPresetsQuery.data) return [];
+
+    let filtered = communityPresetsQuery.data;
+
+    // Apply search filter
+    if (communitySearch.trim()) {
+      const searchLower = communitySearch.toLowerCase();
+      filtered = filtered.filter(
+        (preset) =>
+          preset.name.toLowerCase().includes(searchLower) ||
+          (preset.description && preset.description.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Apply sort
+    const sorted = [...filtered];
+    if (communitySort === 'popular') {
+      sorted.sort((a, b) => (b.importCount || 0) - (a.importCount || 0));
+    } else if (communitySort === 'recent') {
+      sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else if (communitySort === 'imports') {
+      sorted.sort((a, b) => (b.importCount || 0) - (a.importCount || 0));
+    }
+
+    return sorted;
+  }, [communityPresetsQuery.data, communitySearch, communitySort]);
 
   const handleSavePreset = async () => {
     if (!presetName.trim()) {
@@ -187,6 +220,7 @@ export default function Instruments() {
         id: editingPresetId,
         name: presetName,
         description: presetDescription,
+        isPublic: presetIsPublic,
       });
 
       toast({
@@ -198,6 +232,7 @@ export default function Instruments() {
       setEditingPresetId(null);
       setPresetName('');
       setPresetDescription('');
+      setPresetIsPublic(false);
       utils.customPresets.list.invalidate();
     } catch (error) {
       toast({
@@ -897,6 +932,7 @@ export default function Instruments() {
                                 setEditingPresetId(preset.id);
                                 setPresetName(preset.name);
                                 setPresetDescription(preset.description || '');
+                                setPresetIsPublic(preset.isPublic || false);
                                 setShowEditPresetDialog(true);
                               }}
                             >
@@ -924,9 +960,31 @@ export default function Instruments() {
                       </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="community" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
-                    {communityPresetsQuery.data && communityPresetsQuery.data.length > 0 ? (
-                      communityPresetsQuery.data.map((preset) => (
+                  <TabsContent value="community" className="mt-3 space-y-3">
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search community presets..."
+                          value={communitySearch}
+                          onChange={(e) => setCommunitySearch(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                      <Select value={communitySort} onValueChange={(value: any) => setCommunitySort(value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="popular">Most Popular</SelectItem>
+                          <SelectItem value="recent">Recently Added</SelectItem>
+                          <SelectItem value="imports">Most Imported</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {filteredCommunityPresets.length > 0 ? (
+                        filteredCommunityPresets.map((preset) => (
                         <div
                           key={preset.id}
                           className="w-full p-3 rounded-lg border bg-card hover:bg-accent transition-colors group relative"
@@ -957,12 +1015,13 @@ export default function Instruments() {
                           </button>
                         </div>
                       ))
-                    ) : (
-                      <div className="text-center text-sm text-muted-foreground py-8">
-                        <p>No community presets available</p>
-                        <p className="text-xs mt-1">Be the first to share a preset!</p>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="text-center text-sm text-muted-foreground py-8">
+                          <p>{communitySearch ? 'No presets match your search' : 'No community presets available'}</p>
+                          <p className="text-xs mt-1">{communitySearch ? 'Try a different search term' : 'Be the first to share a preset!'}</p>
+                        </div>
+                      )}
+                    </div>
                   </TabsContent>
                 </Tabs>
               </div>
@@ -1211,6 +1270,19 @@ export default function Instruments() {
                         rows={3}
                       />
                     </div>
+                    <div className="flex items-center justify-between py-2">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="preset-public">Make Public</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Public presets appear in the Community tab for others to import
+                        </p>
+                      </div>
+                      <Switch
+                        id="preset-public"
+                        checked={presetIsPublic}
+                        onCheckedChange={setPresetIsPublic}
+                      />
+                    </div>
                     <div className="flex gap-2">
                       <Button onClick={handleEditPreset} className="flex-1">
                         Update Preset
@@ -1221,6 +1293,7 @@ export default function Instruments() {
                           setEditingPresetId(null);
                           setPresetName('');
                           setPresetDescription('');
+                          setPresetIsPublic(false);
                         }}
                         variant="outline"
                       >
