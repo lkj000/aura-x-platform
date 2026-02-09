@@ -64,7 +64,11 @@ def generate_music_endpoint(request: GenerateMusicRequest):
     request_dict = request.dict()
     webhook_url = request_dict.pop("webhook_url", None)
     generation_id = request_dict.pop("generation_id", None)
-    return generate_music.remote(request_dict, webhook_url=webhook_url, generation_id=generation_id)
+    return generate_music.remote(
+        request_data=request_dict,
+        webhook_url=webhook_url,
+        generation_id=generation_id
+    )
 
 @web_app.post("/separate_stems")
 def separate_stems_endpoint(request: SeparateStemsRequest):
