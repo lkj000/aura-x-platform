@@ -2185,3 +2185,49 @@
 - [ ] Verify generation appears in history page
 - [ ] Test preset saving and loading
 - [ ] Test preset sharing and importing
+
+
+## Full Generation Cycle Test (Current)
+
+### Phase 1: Monitor Generation Progress
+- [ ] Check browser for progress updates
+- [ ] Verify progress phases transition correctly (Loading → Generating → Uploading → Finalizing)
+- [ ] Monitor estimated time remaining accuracy
+- [ ] Wait for Modal backend completion (7-10 minutes)
+
+### Phase 2: Verify Webhook Callback
+- [ ] Check backend logs for webhook callback
+- [ ] Verify database status updated to "completed"
+- [ ] Verify S3 audio URL stored in database
+- [ ] Check for any webhook errors
+
+### Phase 3: Test Audio Playback
+- [ ] Verify audio player appears in Instruments page
+- [ ] Test audio playback functionality
+- [ ] Test download button
+- [ ] Verify S3 URL is accessible
+
+### Phase 4: Verify History Page Integration
+- [ ] Navigate to /history page
+- [ ] Verify generation appears in history
+- [ ] Test audio playback in history page
+- [ ] Test Replay/Remix buttons
+- [ ] Verify all metadata displayed correctly
+
+
+## Settings UI & Batch Generation Implementation (Current)
+
+### Settings UI: Notification Sound Toggle
+- [x] Add Switch component to Preferences tab in Settings page (already implemented)
+- [x] Wire up notification sound toggle to user preferences
+- [x] Test sound playback toggle on/off
+- [x] Add tooltip explaining notification sound feature
+
+### Batch Generation Dashboard
+- [ ] Design batch generation UI component
+- [ ] Add "Batch Generate" button to Instruments page
+- [ ] Create batch generation modal with parameter grid
+- [ ] Implement batch generation queue management
+- [ ] Add progress tracking for multiple generations
+- [ ] Display all batch results in unified dashboard
+- [ ] Add batch export functionality
