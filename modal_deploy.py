@@ -133,10 +133,10 @@ def generate_music(request_data: dict, webhook_url: str = None, generation_id: i
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
         
-        # Load MusicGen model
+        # Load MusicGen model (using small model for faster download)
         print(f"[MODEL] Loading MusicGen model...")
         model_load_start = time.time()
-        model = MusicGen.get_pretrained('facebook/musicgen-medium', device='cuda')
+        model = MusicGen.get_pretrained('facebook/musicgen-small', device='cuda')
         model_load_time = time.time() - model_load_start
         print(f"[MODEL] Model loaded in {model_load_time:.2f}s")
     
@@ -194,14 +194,14 @@ def generate_music(request_data: dict, webhook_url: str = None, generation_id: i
                 's3',
                 aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
                 aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
-                region_name='us-east-1'
+                region_name=os.environ.get('S3_REGION', 'us-east-1')
             )
             print(f"[S3] S3 client initialized")
         
             # Generate unique S3 key
             timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
             s3_key = f"generated-music/{timestamp}-gen{generation_id or 'test'}.wav"
-            bucket_name = 'aura-x-audio-generation'
+            bucket_name = os.environ.get('S3_BUCKET', 'aura-x-audio-generation')
             
             print(f"[S3] Uploading to s3://{bucket_name}/{s3_key}")
             upload_start = time.time()
