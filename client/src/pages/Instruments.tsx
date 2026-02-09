@@ -100,6 +100,9 @@ export default function Instruments() {
 
   // Custom presets
   const customPresetsQuery = trpc.customPresets.list.useQuery();
+  
+  // User preferences
+  const preferencesQuery = trpc.preferences.get.useQuery();
   const createPresetMutation = trpc.customPresets.create.useMutation();
   const updatePresetMutation = trpc.customPresets.update.useMutation();
   const deletePresetMutation = trpc.customPresets.delete.useMutation();
@@ -249,6 +252,13 @@ export default function Instruments() {
         title: 'Generation Complete! 🎉',
         description: 'Your Amapiano track is ready to play',
       });
+      
+      // Play notification sound if enabled
+      if (preferencesQuery.data?.notificationSoundEnabled) {
+        const audio = new Audio('/notification.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(err => console.log('Could not play notification sound:', err));
+      }
     }
 
     // Generation failed

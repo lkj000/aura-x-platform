@@ -134,6 +134,20 @@
       "when": 1770411459530,
       "tag": "0018_peaceful_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1770595287416,
+      "tag": "0019_cloudy_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1770595459860,
+      "tag": "0020_worried_psynapse",
+      "breakpoints": true
     }
   ]
 }

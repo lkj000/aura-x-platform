@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import * as modalClient from './modalClient';
-import { users, userQueueStats } from '../drizzle/schema';
+import { users, userQueueStats, userPreferences, customPresets } from '../drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getMaxConcurrentJobs } from '../shared/tierConfig';
 import type { UserTier } from '../shared/tierConfig';
@@ -824,6 +824,148 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await db.incrementCustomPresetUsage(input.id);
         return { success: true };
+      }),
+
+    // Generate shareable link for preset
+    generateShareLink: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+        
+        // Verify preset belongs to user
+        const [preset] = await dbConn.select()
+          .from(customPresets)
+          .where(eq(customPresets.id, input.id))
+          .limit(1);
+        
+        if (!preset || preset.userId !== ctx.user.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Preset not found or unauthorized' });
+        }
+        
+        // Generate unique share code if not exists
+        let shareCode = preset.shareCode;
+        if (!shareCode) {
+          shareCode = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          await dbConn.update(customPresets)
+            .set({ shareCode, isPublic: true })
+            .where(eq(customPresets.id, input.id));
+        } else {
+          // Just make it public
+          await dbConn.update(customPresets)
+            .set({ isPublic: true })
+            .where(eq(customPresets.id, input.id));
+        }
+        
+        const origin = ctx.req.headers.origin || 'http://localhost:3000';
+        return {
+          shareUrl: `${origin}/preset/${shareCode}`,
+          shareCode,
+        };
+      }),
+
+    // Make preset private (unshare)
+    unsharePreset: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+        
+        // Verify preset belongs to user
+        const [preset] = await dbConn.select()
+          .from(customPresets)
+          .where(eq(customPresets.id, input.id))
+          .limit(1);
+        
+        if (!preset || preset.userId !== ctx.user.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Preset not found or unauthorized' });
+        }
+        
+        await dbConn.update(customPresets)
+          .set({ isPublic: false })
+          .where(eq(customPresets.id, input.id));
+        
+        return { success: true };
+      }),
+
+    // Get shared preset by share code (public)
+    getSharedPreset: publicProcedure
+      .input(z.object({ shareCode: z.string() }))
+      .query(async ({ input }) => {
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+        
+        const [preset] = await dbConn.select()
+          .from(customPresets)
+          .where(eq(customPresets.shareCode, input.shareCode))
+          .limit(1);
+        
+        if (!preset || !preset.isPublic) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Shared preset not found' });
+        }
+        
+        return preset;
+      }),
+
+    // Import shared preset to user's library
+    importSharedPreset: protectedProcedure
+      .input(z.object({ shareCode: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+        
+        // Get shared preset
+        const [sharedPreset] = await dbConn.select()
+          .from(customPresets)
+          .where(eq(customPresets.shareCode, input.shareCode))
+          .limit(1);
+        
+        if (!sharedPreset || !sharedPreset.isPublic) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Shared preset not found' });
+        }
+        
+        // Create copy for current user
+        const [newPreset] = await dbConn.insert(customPresets)
+          .values({
+            userId: ctx.user.id,
+            name: `${sharedPreset.name} (imported)`,
+            description: sharedPreset.description,
+            category: sharedPreset.category,
+            style: sharedPreset.style,
+            icon: sharedPreset.icon,
+            prompt: sharedPreset.prompt,
+            parameters: sharedPreset.parameters,
+            culturalElements: sharedPreset.culturalElements,
+            tags: sharedPreset.tags,
+          })
+          .$returningId();
+        
+        // Increment import count on original
+        await dbConn.update(customPresets)
+          .set({ importCount: (sharedPreset.importCount || 0) + 1 })
+          .where(eq(customPresets.id, sharedPreset.id));
+        
+        return { success: true, presetId: newPreset.id };
+      }),
+
+    // List public/community presets
+    listPublicPresets: publicProcedure
+      .input(z.object({
+        limit: z.number().optional().default(20),
+        offset: z.number().optional().default(0),
+      }))
+      .query(async ({ input }) => {
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+        
+        const presets = await dbConn.select()
+          .from(customPresets)
+          .where(eq(customPresets.isPublic, true))
+          .orderBy(desc(customPresets.importCount))
+          .limit(input.limit)
+          .offset(input.offset);
+        
+        return presets;
       }),
   }),
 
@@ -1882,5 +2024,67 @@ export const appRouter = router({
   communityFeedback: communityFeedbackRouter,
   musicGeneration: musicGenerationRouter,
   samplePacks: samplePackRouter,
+
+  // User Preferences router
+  preferences: router({
+    // Get user preferences
+    get: protectedProcedure
+      .query(async ({ ctx }) => {
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+        const [preference] = await dbConn.select()
+          .from(userPreferences)
+          .where(eq(userPreferences.userId, ctx.user.id))
+          .limit(1);
+        
+        // Create default preferences if none exist
+        if (!preference) {
+          const [newPreference] = await dbConn.insert(userPreferences)
+            .values({ userId: ctx.user.id })
+            .$returningId();
+          
+          const [created] = await dbConn.select()
+            .from(userPreferences)
+            .where(eq(userPreferences.id, newPreference.id))
+            .limit(1);
+          
+          return created;
+        }
+        
+        return preference;
+      }),
+
+    // Update user preferences
+    update: protectedProcedure
+      .input(z.object({
+        notificationSoundEnabled: z.boolean().optional(),
+        emailNotifications: z.boolean().optional(),
+        theme: z.enum(['light', 'dark', 'system']).optional(),
+        defaultGenerationMode: z.enum(['creative', 'production']).optional(),
+        defaultTempo: z.number().optional(),
+        defaultKey: z.string().optional(),
+        defaultDuration: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database connection failed' });
+        // Ensure preferences exist
+        const [existing] = await dbConn.select()
+          .from(userPreferences)
+          .where(eq(userPreferences.userId, ctx.user.id))
+          .limit(1);
+        
+        if (!existing) {
+          await dbConn.insert(userPreferences)
+            .values({ userId: ctx.user.id, ...input });
+        } else {
+          await dbConn.update(userPreferences)
+            .set(input)
+            .where(eq(userPreferences.userId, ctx.user.id));
+        }
+        
+        return { success: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

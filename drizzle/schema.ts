@@ -278,6 +278,9 @@ export const customPresets = mysqlTable("custom_presets", {
   tags: json("tags").notNull(), // Array of tags
   basedOnGenerationId: int("basedOnGenerationId"), // Optional: link to generation that inspired this preset
   usageCount: int("usageCount").default(0).notNull(), // Track how often this preset is used
+  isPublic: boolean("isPublic").default(false).notNull(), // Whether preset is publicly shareable
+  shareCode: varchar("shareCode", { length: 32 }).unique(), // Unique code for sharing (e.g., "abc123xyz")
+  importCount: int("importCount").default(0).notNull(), // Track how many times preset was imported
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -697,3 +700,35 @@ export const samplePackDownloads = mysqlTable('samplePackDownloads', {
 export type SamplePackDownload = typeof samplePackDownloads.$inferSelect;
 export type InsertSamplePackDownload = typeof samplePackDownloads.$inferInsert;
 
+
+// ============================================================================
+// User Preferences
+// ============================================================================
+
+/**
+ * User Preferences table
+ * Stores user-specific settings and preferences
+ */
+export const userPreferences = mysqlTable('userPreferences', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('userId').notNull().unique(), // Foreign key to users, one preference record per user
+  
+  // Notification Settings
+  notificationSoundEnabled: boolean('notificationSoundEnabled').default(true).notNull(),
+  emailNotifications: boolean('emailNotifications').default(true).notNull(),
+  
+  // UI Preferences
+  theme: mysqlEnum('theme', ['light', 'dark', 'system']).default('dark').notNull(),
+  defaultGenerationMode: mysqlEnum('defaultGenerationMode', ['creative', 'production']).default('creative').notNull(),
+  
+  // Generation Defaults
+  defaultTempo: int('defaultTempo').default(112),
+  defaultKey: varchar('defaultKey', { length: 10 }).default('C'),
+  defaultDuration: int('defaultDuration').default(30),
+  
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type InsertUserPreference = typeof userPreferences.$inferInsert;
