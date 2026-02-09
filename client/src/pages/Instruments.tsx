@@ -504,34 +504,74 @@ export default function Instruments() {
             variant: 'destructive',
           });
         } else if (generation.status === 'processing') {
-          // Calculate progress based on elapsed time (7-10 min generation)
+          // Calculate progress based on Modal's actual timing:
+          // - Model download: 21 seconds (0-35% progress)
+          // - Audio generation: 40 seconds (35-90% progress)
+          // - S3 upload: 0.35 seconds (90-100% progress)
+          // Total: ~62 seconds
           const elapsedSeconds = attempts * 5; // 5 second intervals
-          const estimatedTotalSeconds = 540; // 9 minutes average
-          const progressPercent = Math.min(90, (elapsedSeconds / estimatedTotalSeconds) * 100);
+          const estimatedTotalSeconds = 62; // Based on Modal logs: 21s + 40s + 0.35s
           
-          // Determine phase based on progress
-          if (progressPercent < 20) {
-            setGenerationPhase('loading');
-          } else if (progressPercent < 70) {
-            setGenerationPhase('generating');
-          } else if (progressPercent < 85) {
-            setGenerationPhase('uploading');
+          let progressPercent: number;
+          let phase: 'loading' | 'generating' | 'uploading' | 'finalizing';
+          let timeRemaining: number;
+          
+          if (elapsedSeconds <= 21) {
+            // Model download phase (0-21s)
+            progressPercent = (elapsedSeconds / 21) * 35;
+            phase = 'loading';
+            timeRemaining = 62 - elapsedSeconds;
+          } else if (elapsedSeconds <= 61) {
+            // Generation phase (21-61s)
+            progressPercent = 35 + ((elapsedSeconds - 21) / 40) * 55;
+            phase = 'generating';
+            timeRemaining = 62 - elapsedSeconds;
           } else {
-            setGenerationPhase('finalizing');
+            // Upload/finalize phase (61-62s)
+            progressPercent = 90 + ((elapsedSeconds - 61) / 1) * 10;
+            phase = 'uploading';
+            timeRemaining = Math.max(0, 62 - elapsedSeconds);
           }
           
+          // Cap progress at 95% until actually completed
+          progressPercent = Math.min(95, progressPercent);
+          
+          setGenerationPhase(phase);
           setGenerationProgress(progressPercent);
+          
+          // Update estimated time remaining (convert to minutes if > 60s)
+          const timeRemainingDisplay = timeRemaining > 60 
+            ? `${Math.ceil(timeRemaining / 60)} min`
+            : `${Math.ceil(timeRemaining)}s`;
+          
+          console.log(`[Instruments] Progress: ${progressPercent.toFixed(1)}% | Phase: ${phase} | Time remaining: ${timeRemainingDisplay}`);
 
           attempts++;
           if (attempts < maxAttempts) {
             setTimeout(poll, 5000); // Poll every 5 seconds
           } else {
+            // Timeout reached - auto-fail the generation
             setIsGenerating(false);
-            toast({
-              title: 'Generation Timeout',
-              description: 'Generation is taking longer than expected',
-              variant: 'destructive',
-            });
+            
+            try {
+              await utils.client.generate.failGeneration.mutate({
+                generationId,
+                errorMessage: 'Generation timeout: exceeded 15 minutes (900 seconds)',
+              });
+              
+              toast({
+                title: 'Generation Timeout',
+                description: 'Generation exceeded 15 minutes and was automatically cancelled',
+                variant: 'destructive',
+              });
+            } catch (error) {
+              console.error('[Instruments] Failed to auto-fail generation:', error);
+              toast({
+                title: 'Generation Timeout',
+                description: 'Generation is taking longer than expected',
+                variant: 'destructive',
+              });
+            }
           }
         }
       } catch (error) {

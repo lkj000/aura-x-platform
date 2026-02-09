@@ -2257,3 +2257,26 @@
 - [ ] Implement multi-track queue submission
 - [ ] Add batch progress tracking
 - [ ] Display batch results dashboard
+
+
+## Current Sprint: Audio Playback Testing & UX Improvements
+
+### Audio Playback Testing
+- [x] Test audio playback functionality with generation 480005
+- [x] Verify audio player controls work correctly
+- [x] Test waveform visualization rendering
+- [x] Validate audio quality and format
+
+### Timeout Handling Implementation
+- [x] Implement 15-minute timeout handling with auto-fail for stuck generations
+- [x] Add user notification via toast for timeout events
+- [x] Create database cleanup for timed-out generations
+- [x] Add retry mechanism for failed generations
+
+### Real-Time Progress Tracking
+- [x] Implement real-time progress tracking with estimated time remaining
+- [x] Show model download progress during generation (0-21s)
+- [x] Display generation status updates (pending → processing → completed)
+- [x] Add progress bar with percentage completion
+- [x] Show current phase (downloading model / generating audio / uploading)
+- [x] Implement WebSocket or polling for live updates

@@ -533,6 +533,37 @@ export const appRouter = router({
           throw error;
         }
       }),
+
+    // Fail generation (called by frontend on timeout)
+    failGeneration: protectedProcedure
+      .input(z.object({ 
+        generationId: z.number(),
+        errorMessage: z.string().default('Generation timeout: exceeded 15 minutes'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const generation = await db.getGenerationById(input.generationId);
+        if (!generation) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Generation not found' });
+        }
+
+        // Check if user owns this generation
+        if (generation.userId !== ctx.user.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Not authorized' });
+        }
+
+        // Only fail if still in pending/processing state
+        if (generation.status === 'pending' || generation.status === 'processing') {
+          await db.updateGeneration(input.generationId, {
+            status: 'failed',
+            errorMessage: input.errorMessage,
+          });
+          
+          console.log('[Fail Generation] Auto-failed generation:', input.generationId);
+          return { success: true, generationId: input.generationId };
+        }
+        
+        return { success: false, message: 'Generation already completed or failed' };
+      }),
   }),
 
   // Generation History router
