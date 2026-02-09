@@ -209,8 +209,7 @@ def generate_music(request_data: dict, webhook_url: str = None, generation_id: i
                 Bucket=bucket_name,
                 Key=s3_key,
                 Body=audio_bytes,
-                ContentType='audio/wav',
-                ACL='public-read'
+                ContentType='audio/wav'
             )
             upload_time = time.time() - upload_start
             
