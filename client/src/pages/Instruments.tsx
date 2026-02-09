@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lightbulb, Lock, Edit, Trash2 } from 'lucide-react';
+import { Loader2, Play, Pause, Download, Save, Sparkles, Music, AlertCircle, Lightbulb, Lock, Edit, Trash2, Share2, Copy, Check } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
 import { AudioEngine } from '@/services/AudioEngine';
@@ -106,11 +106,19 @@ export default function Instruments() {
   const createPresetMutation = trpc.customPresets.create.useMutation();
   const updatePresetMutation = trpc.customPresets.update.useMutation();
   const deletePresetMutation = trpc.customPresets.delete.useMutation();
+  const sharePresetMutation = trpc.customPresets.generateShareLink.useMutation();
+  const unsharePresetMutation = trpc.customPresets.unsharePreset.useMutation();
+  const communityPresetsQuery = trpc.customPresets.listPublicPresets.useQuery({ limit: 20, offset: 0 });
+  const importPresetMutation = trpc.customPresets.importSharedPreset.useMutation();
   const [showSavePresetDialog, setShowSavePresetDialog] = useState(false);
   const [showEditPresetDialog, setShowEditPresetDialog] = useState(false);
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [editingPresetId, setEditingPresetId] = useState<number | null>(null);
   const [deletingPresetId, setDeletingPresetId] = useState<number | null>(null);
+  const [sharingPresetId, setSharingPresetId] = useState<number | null>(null);
+  const [shareUrl, setShareUrl] = useState('');
+  const [copied, setCopied] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [presetDescription, setPresetDescription] = useState('');
 
@@ -217,6 +225,50 @@ export default function Instruments() {
     } catch (error) {
       toast({
         title: 'Failed to Delete Preset',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSharePreset = async () => {
+    if (!sharingPresetId) return;
+
+    try {
+      const result = await sharePresetMutation.mutateAsync({ id: sharingPresetId });
+      setShareUrl(result.shareUrl);
+      setShowShareDialog(true);
+      utils.customPresets.list.invalidate();
+    } catch (error) {
+      toast({
+        title: 'Failed to Share Preset',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCopyShareLink = () => {
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({
+      title: 'Link Copied!',
+      description: 'Share link copied to clipboard',
+    });
+  };
+
+  const handleImportPreset = async (shareCode: string) => {
+    try {
+      await importPresetMutation.mutateAsync({ shareCode });
+      toast({
+        title: 'Preset Imported!',
+        description: 'Community preset has been added to your library',
+      });
+      utils.customPresets.list.invalidate();
+    } catch (error) {
+      toast({
+        title: 'Failed to Import Preset',
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       });
@@ -682,11 +734,12 @@ export default function Instruments() {
               <div className="space-y-3">
                 <Label>Amapiano Presets</Label>
                 <Tabs defaultValue="all" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="all">All</TabsTrigger>
                     <TabsTrigger value="production">Production</TabsTrigger>
                     <TabsTrigger value="creative">Creative</TabsTrigger>
                     <TabsTrigger value="custom">My Presets</TabsTrigger>
+                    <TabsTrigger value="community">Community</TabsTrigger>
                   </TabsList>
                   <TabsContent value="all" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
                     {amapianoPresets.map((preset) => (
@@ -829,6 +882,18 @@ export default function Instruments() {
                               className="h-7 w-7"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setSharingPresetId(preset.id);
+                                handleSharePreset();
+                              }}
+                            >
+                              <Share2 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditingPresetId(preset.id);
                                 setPresetName(preset.name);
                                 setPresetDescription(preset.description || '');
@@ -856,6 +921,46 @@ export default function Instruments() {
                       <div className="text-center text-sm text-muted-foreground py-8">
                         <p>No custom presets yet</p>
                         <p className="text-xs mt-1">Save your favorite settings as presets!</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="community" className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
+                    {communityPresetsQuery.data && communityPresetsQuery.data.length > 0 ? (
+                      communityPresetsQuery.data.map((preset) => (
+                        <div
+                          key={preset.id}
+                          className="w-full p-3 rounded-lg border bg-card hover:bg-accent transition-colors group relative"
+                        >
+                          <button
+                            className="w-full text-left"
+                            onClick={() => {
+                              if (preset.shareCode) {
+                                handleImportPreset(preset.shareCode);
+                              }
+                            }}
+                            disabled={isGenerating}
+                          >
+                            <div className="flex items-start gap-2">
+                              <span className="text-2xl">{preset.icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm">{preset.name}</div>
+                                {preset.description && (
+                                  <div className="text-xs text-muted-foreground line-clamp-2">
+                                    {preset.description}
+                                  </div>
+                                )}
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {preset.importCount || 0} imports
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-sm text-muted-foreground py-8">
+                        <p>No community presets available</p>
+                        <p className="text-xs mt-1">Be the first to share a preset!</p>
                       </div>
                     )}
                   </TabsContent>
@@ -1146,6 +1251,37 @@ export default function Instruments() {
                         variant="outline"
                       >
                         Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Share Preset Dialog */}
+              {showShareDialog && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md space-y-4">
+                    <h3 className="text-lg font-semibold">Share Preset</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Anyone with this link can import your preset to their library.
+                    </p>
+                    <div className="flex gap-2">
+                      <Input value={shareUrl} readOnly className="flex-1" />
+                      <Button onClick={handleCopyShareLink} variant="outline" size="icon">
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          setShowShareDialog(false);
+                          setSharingPresetId(null);
+                          setShareUrl('');
+                          setCopied(false);
+                        }}
+                        className="flex-1"
+                      >
+                        Done
                       </Button>
                     </div>
                   </div>

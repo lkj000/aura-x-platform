@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,20 +7,47 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, Loader2, Server, Key, Database, Zap, Music } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Server, Key, Database, Zap, Music, Bell, Palette, Save } from 'lucide-react';
 import SampleUpload from '@/components/SampleUpload';
 import ModalConfiguration from '@/components/ModalConfiguration';
 import MIDIMappingPanel from '@/components/MIDIMapping';
 import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel';
 import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 
 export default function Settings() {
+  const preferencesQuery = trpc.preferences.get.useQuery();
+  const updatePreferencesMutation = trpc.preferences.update.useMutation();
+  const utils = trpc.useUtils();
+
+  const [notificationSound, setNotificationSound] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark');
+  const [defaultTempo, setDefaultTempo] = useState(112);
+  const [defaultKey, setDefaultKey] = useState('F min');
+  const [defaultDuration, setDefaultDuration] = useState(30);
+
   const [modalConfig, setModalConfig] = useState({
     baseUrl: '',
     apiKey: '',
   });
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  // Load preferences when data is available
+  useEffect(() => {
+    if (preferencesQuery.data) {
+      setNotificationSound(preferencesQuery.data.notificationSoundEnabled);
+      setEmailNotifications(preferencesQuery.data.emailNotifications || false);
+      setTheme((preferencesQuery.data.theme as 'light' | 'dark' | 'system') || 'dark');
+      setDefaultTempo(preferencesQuery.data.defaultTempo || 112);
+      setDefaultKey(preferencesQuery.data.defaultKey || 'F min');
+      setDefaultDuration(preferencesQuery.data.defaultDuration || 30);
+    }
+  }, [preferencesQuery.data]);
 
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
@@ -45,6 +72,24 @@ export default function Settings() {
     toast.success('Configuration saved successfully!');
   };
 
+  const handleSavePreferences = async () => {
+    try {
+      await updatePreferencesMutation.mutateAsync({
+        notificationSoundEnabled: notificationSound,
+        emailNotifications,
+        theme,
+        defaultTempo,
+        defaultKey,
+        defaultDuration,
+      });
+
+      toast.success('Preferences saved successfully!');
+      utils.preferences.get.invalidate();
+    } catch (error) {
+      toast.error('Failed to save preferences');
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto max-w-4xl py-8">
@@ -58,7 +103,11 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="modal" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="preferences">
+              <Key className="h-4 w-4 mr-2" />
+              Preferences
+            </TabsTrigger>
             <TabsTrigger value="modal">
               <Server className="h-4 w-4 mr-2" />
               Modal AI
@@ -84,6 +133,155 @@ export default function Settings() {
               Advanced
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="preferences" className="space-y-4 mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  <CardTitle>Notifications</CardTitle>
+                </div>
+                <CardDescription>
+                  Configure how you receive notifications about generation progress
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="notification-sound">Notification Sound</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Play a sound when generation completes
+                    </p>
+                  </div>
+                  <Switch
+                    id="notification-sound"
+                    checked={notificationSound}
+                    onCheckedChange={setNotificationSound}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="email-notifications">Email Notifications</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Receive email updates for completed generations
+                    </p>
+                  </div>
+                  <Switch
+                    id="email-notifications"
+                    checked={emailNotifications}
+                    onCheckedChange={setEmailNotifications}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Palette className="h-5 w-5" />
+                  <CardTitle>Appearance</CardTitle>
+                </div>
+                <CardDescription>
+                  Customize the look and feel of the application
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="theme">Theme</Label>
+                  <Select value={theme} onValueChange={(value: any) => setTheme(value)}>
+                    <SelectTrigger id="theme">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Music className="h-5 w-5" />
+                  <CardTitle>Default Generation Parameters</CardTitle>
+                </div>
+                <CardDescription>
+                  Set default values for music generation
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="default-tempo">Tempo (BPM)</Label>
+                    <span className="text-sm text-muted-foreground">{defaultTempo}</span>
+                  </div>
+                  <Slider
+                    id="default-tempo"
+                    min={80}
+                    max={140}
+                    step={1}
+                    value={[defaultTempo]}
+                    onValueChange={([value]) => setDefaultTempo(value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="default-key">Key</Label>
+                  <Select value={defaultKey} onValueChange={setDefaultKey}>
+                    <SelectTrigger id="default-key">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="C min">C minor</SelectItem>
+                      <SelectItem value="D min">D minor</SelectItem>
+                      <SelectItem value="E min">E minor</SelectItem>
+                      <SelectItem value="F min">F minor</SelectItem>
+                      <SelectItem value="G min">G minor</SelectItem>
+                      <SelectItem value="A min">A minor</SelectItem>
+                      <SelectItem value="B min">B minor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="default-duration">Duration (seconds)</Label>
+                    <span className="text-sm text-muted-foreground">{defaultDuration}s</span>
+                  </div>
+                  <Slider
+                    id="default-duration"
+                    min={10}
+                    max={60}
+                    step={5}
+                    value={[defaultDuration]}
+                    onValueChange={([value]) => setDefaultDuration(value)}
+                  />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button
+                  onClick={handleSavePreferences}
+                  disabled={updatePreferencesMutation.isPending}
+                  className="gap-2"
+                >
+                  {updatePreferencesMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save Preferences
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="modal" className="space-y-4 mt-6">
             <ModalConfiguration />
