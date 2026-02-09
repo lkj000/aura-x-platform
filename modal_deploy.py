@@ -104,109 +104,179 @@ def generate_music(request_data: dict, webhook_url: str = None, generation_id: i
     """
     Generate music using MusicGen model
     """
+    print(f"[START] Generation {generation_id} starting with params: {request_data}")
+    print(f"[START] Webhook URL: {webhook_url}")
+    
     import torch
     from audiocraft.models import MusicGen
     from audiocraft.data.audio import audio_write
     import tempfile
     import base64
+    import time
     
-    # Set deterministic mode if seed provided
-    seed = request_data.get("seed")
-    if seed is not None:
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+    start_time = time.time()
     
-    # Load MusicGen model
-    model = MusicGen.get_pretrained('facebook/musicgen-medium', device='cuda')
+    try:
+        print(f"[GPU] Checking GPU availability...")
+        print(f"[GPU] CUDA available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            print(f"[GPU] Device count: {torch.cuda.device_count()}")
+            print(f"[GPU] Current device: {torch.cuda.current_device()}")
+            print(f"[GPU] Device name: {torch.cuda.get_device_name(0)}")
     
-    # Set generation parameters
-    model.set_generation_params(
-        duration=request_data.get("duration", 30),
-        temperature=request_data.get("temperature", 1.0),
-        top_k=request_data.get("top_k", 250),
-        top_p=request_data.get("top_p", 0.0),
-        cfg_coef=request_data.get("cfg_scale", 3.0),
-    )
+        # Set deterministic mode if seed provided
+        seed = request_data.get("seed")
+        if seed is not None:
+            print(f"[SEED] Setting seed: {seed}")
+            torch.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+        
+        # Load MusicGen model
+        print(f"[MODEL] Loading MusicGen model...")
+        model_load_start = time.time()
+        model = MusicGen.get_pretrained('facebook/musicgen-medium', device='cuda')
+        model_load_time = time.time() - model_load_start
+        print(f"[MODEL] Model loaded in {model_load_time:.2f}s")
     
-    # Generate music
-    prompt = request_data["prompt"]
-    wav = model.generate([prompt], progress=False)
-    
-    # Convert to audio file
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
-        audio_write(
-            tmp_file.name.replace(".wav", ""),
-            wav[0].cpu(),
-            model.sample_rate,
-            strategy="loudness",
-            loudness_compressor=True
+        # Set generation parameters
+        duration = request_data.get("duration", 30)
+        temperature = request_data.get("temperature", 1.0)
+        top_k = request_data.get("top_k", 250)
+        top_p = request_data.get("top_p", 0.0)
+        cfg_coef = request_data.get("cfg_scale", 3.0)
+        
+        print(f"[PARAMS] Duration: {duration}s, Temp: {temperature}, Top-K: {top_k}, Top-P: {top_p}, CFG: {cfg_coef}")
+        
+        model.set_generation_params(
+            duration=duration,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            cfg_coef=cfg_coef,
         )
         
-        # Upload to S3
-        import boto3
-        import os
-        from datetime import datetime
-        
-        with open(tmp_file.name, "rb") as f:
-            audio_bytes = f.read()
-        
-        print(f"[Generation] Successfully generated {len(audio_bytes)} bytes of audio")
-        
-        # Upload to S3
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
-            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
-            region_name='us-east-1'
-        )
-        
-        # Generate unique S3 key
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-        s3_key = f"generated-music/{timestamp}-gen{generation_id or 'test'}.wav"
-        bucket_name = 'aura-x-audio-generation'
-        
-        print(f"[S3] Uploading to s3://{bucket_name}/{s3_key}")
-        s3_client.put_object(
-            Bucket=bucket_name,
-            Key=s3_key,
-            Body=audio_bytes,
-            ContentType='audio/wav',
-            ACL='public-read'
-        )
-        
-        audio_url = f"https://{bucket_name}.s3.amazonaws.com/{s3_key}"
-        print(f"[S3] Upload complete: {audio_url}")
+        # Generate music
+        prompt = request_data["prompt"]
+        print(f"[GENERATE] Starting generation with prompt: {prompt}")
+        gen_start = time.time()
+        wav = model.generate([prompt], progress=False)
+        gen_time = time.time() - gen_start
+        print(f"[GENERATE] Generation complete in {gen_time:.2f}s")
     
-    result = {
-        "status": "success",
-        "audio_url": audio_url,
-        "sample_rate": model.sample_rate,
-        "duration": request_data.get("duration", 30),
-        "seed": seed,
-    }
+        # Convert to audio file
+        print(f"[AUDIO] Writing audio to temporary file...")
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+            audio_write(
+                tmp_file.name.replace(".wav", ""),
+                wav[0].cpu(),
+                model.sample_rate,
+                strategy="loudness",
+                loudness_compressor=True
+            )
+            print(f"[AUDIO] Audio written to {tmp_file.name}")
+        
+            # Upload to S3
+            import boto3
+            import os
+            from datetime import datetime
+            
+            print(f"[AUDIO] Reading audio file...")
+            with open(tmp_file.name, "rb") as f:
+                audio_bytes = f.read()
+            
+            print(f"[AUDIO] Successfully generated {len(audio_bytes)} bytes of audio")
+        
+            # Upload to S3
+            print(f"[S3] Initializing S3 client...")
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+                aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+                region_name='us-east-1'
+            )
+            print(f"[S3] S3 client initialized")
+        
+            # Generate unique S3 key
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+            s3_key = f"generated-music/{timestamp}-gen{generation_id or 'test'}.wav"
+            bucket_name = 'aura-x-audio-generation'
+            
+            print(f"[S3] Uploading to s3://{bucket_name}/{s3_key}")
+            upload_start = time.time()
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=s3_key,
+                Body=audio_bytes,
+                ContentType='audio/wav',
+                ACL='public-read'
+            )
+            upload_time = time.time() - upload_start
+            
+            audio_url = f"https://{bucket_name}.s3.amazonaws.com/{s3_key}"
+            print(f"[S3] Upload complete in {upload_time:.2f}s: {audio_url}")
     
-    # Call webhook if provided
-    if webhook_url and generation_id:
-        import requests
-        try:
-            webhook_payload = {
-                "generationId": generation_id,
-                "jobId": f"modal-{generation_id}",
-                "status": "completed",
-                "audioUrl": audio_url,
-                "processingTime": None,  # TODO: Track actual processing time
-            }
-            print(f"[Webhook] Calling {webhook_url} with payload: {webhook_payload}")
-            webhook_response = requests.post(webhook_url, json=webhook_payload, timeout=10)
-            webhook_response.raise_for_status()
-            print(f"[Webhook] Success: {webhook_response.status_code}")
-        except Exception as e:
-            print(f"[Webhook] Failed to call webhook: {e}")
-            # Don't fail the generation if webhook fails
-    
-    return result
+        total_time = time.time() - start_time
+        print(f"[COMPLETE] Total processing time: {total_time:.2f}s")
+        
+        result = {
+            "status": "success",
+            "audio_url": audio_url,
+            "sample_rate": model.sample_rate,
+            "duration": request_data.get("duration", 30),
+            "seed": seed,
+            "processing_time": total_time,
+        }
+        
+        # Call webhook if provided
+        if webhook_url and generation_id:
+            import requests
+            try:
+                webhook_payload = {
+                    "generationId": generation_id,
+                    "jobId": f"modal-{generation_id}",
+                    "status": "completed",
+                    "audioUrl": audio_url,
+                    "processingTime": int(total_time * 1000),  # Convert to milliseconds
+                }
+                print(f"[WEBHOOK] Calling {webhook_url}")
+                print(f"[WEBHOOK] Payload: {webhook_payload}")
+                webhook_start = time.time()
+                webhook_response = requests.post(webhook_url, json=webhook_payload, timeout=30)
+                webhook_time = time.time() - webhook_start
+                webhook_response.raise_for_status()
+                print(f"[WEBHOOK] Success in {webhook_time:.2f}s: {webhook_response.status_code}")
+                print(f"[WEBHOOK] Response: {webhook_response.text}")
+            except Exception as e:
+                print(f"[WEBHOOK] Failed: {type(e).__name__}: {e}")
+                # Don't fail the generation if webhook fails
+        
+        print(f"[SUCCESS] Generation {generation_id} completed successfully")
+        return result
+        
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        print(f"[ERROR] Generation {generation_id} failed: {error_msg}")
+        import traceback
+        print(f"[ERROR] Traceback:\n{traceback.format_exc()}")
+        
+        # Call webhook with error status
+        if webhook_url and generation_id:
+            import requests
+            try:
+                webhook_payload = {
+                    "generationId": generation_id,
+                    "jobId": f"modal-{generation_id}",
+                    "status": "failed",
+                    "errorMessage": error_msg,
+                }
+                print(f"[WEBHOOK] Calling webhook with error status")
+                requests.post(webhook_url, json=webhook_payload, timeout=30)
+            except Exception as webhook_error:
+                print(f"[WEBHOOK] Failed to send error webhook: {webhook_error}")
+        
+        raise
 
 
 @app.function(
