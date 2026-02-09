@@ -48,6 +48,10 @@ async function startServer() {
   const { handlePackUpload } = await import('../upload-pack');
   app.post('/api/upload-pack', handlePackUpload);
   
+  // Modal webhook endpoint (REST, not tRPC)
+  const { handleModalWebhook } = await import('../modal-webhook');
+  app.post('/api/modal/webhook', handleModalWebhook);
+  
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API

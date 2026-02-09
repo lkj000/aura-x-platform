@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, status, resultUrl, culturalScore, completedAt FROM generations WHERE id = 420001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3BbMmpx5pRXKWey.root --database cGc3ksRef3yLzHbZBSFWXj --execute SELECT id, status, resultUrl, culturalScore, completedAt FROM generations WHERE id = 420001;",
+  "rows": [
+    {
+      "id": "420001",
+      "status": "completed",
+      "resultUrl": "https://test.com/audio.mp3",
+      "culturalScore": "85.50",
+      "completedAt": "2026-02-09 02:57:40"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tresultUrl\tculturalScore\tcompletedAt\n420001\tcompleted\thttps://test.com/audio.mp3\t85.50\t2026-02-09 02:57:40\n",
+  "stderr": "",
+  "execution_time_ms": 68
+}

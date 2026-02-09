@@ -100,7 +100,7 @@ export async function generateMusic(params: MusicGenerationParams, generationId?
     // Construct webhook URL for Modal to call when generation completes
     // Use public dev server URL so Modal can reach the webhook endpoint
     const publicUrl = process.env.PUBLIC_URL || process.env.VITE_APP_URL || 'https://3000-i39r7g9anx75y236scyh6-4cb35ac2.us2.manus.computer';
-    const webhookUrl = generationId ? `${publicUrl}/api/trpc/generate.webhook` : undefined;
+    const webhookUrl = generationId ? `${publicUrl}/api/modal/webhook` : undefined;
     
     // Call the deployed Modal endpoint
     const response = await modalClient.post('/generate_music', {
