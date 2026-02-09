@@ -222,6 +222,15 @@ export async function updateGeneration(generationId: number, updates: Partial<In
   await db.update(generations).set(updates).where(eq(generations.id, generationId));
 }
 
+export async function getGenerationRetryCount(generationId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  // Count all generations with this parentId (retries)
+  const result = await db.select().from(generations).where(eq(generations.parentId, generationId));
+  return result.length;
+}
+
 // Generation History queries
 export async function createGenerationHistory(history: InsertGenerationHistory): Promise<GenerationHistory> {
   const db = await getDb();

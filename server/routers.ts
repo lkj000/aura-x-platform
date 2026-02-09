@@ -458,6 +458,81 @@ export const appRouter = router({
           completedAt: generation.completedAt,
         };
       }),
+
+    // Retry failed generation with same parameters
+    retryGeneration: protectedProcedure
+      .input(z.object({ generationId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        // Get original generation
+        const originalGeneration = await db.getGenerationById(input.generationId);
+        if (!originalGeneration) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Generation not found' });
+        }
+
+        // Check if user owns this generation
+        if (originalGeneration.userId !== ctx.user.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Not authorized' });
+        }
+
+        // Get retry count
+        const retryCount = await db.getGenerationRetryCount(input.generationId);
+        if (retryCount >= 3) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Maximum retry attempts (3) reached' });
+        }
+
+        // Create new generation with same parameters
+        const newGeneration = await db.createGeneration({
+          userId: ctx.user.id,
+          projectId: originalGeneration.projectId,
+          type: originalGeneration.type,
+          prompt: originalGeneration.prompt,
+          parameters: originalGeneration.parameters as any,
+          status: 'pending',
+          parentId: originalGeneration.id,
+        });
+
+        // Call Modal.com API
+        try {
+          const params = originalGeneration.parameters as any;
+          const modalResponse = await modalClient.generateMusic({
+            prompt: originalGeneration.prompt,
+            tempo: params?.tempo,
+            key: params?.key,
+            mode: params?.mode,
+            instruments: params?.instruments,
+            duration: params?.duration,
+            seed: params?.seed,
+            temperature: params?.temperature,
+            topK: params?.topK,
+            topP: params?.topP,
+            cfgScale: params?.cfgScale,
+            generationMode: params?.generationMode || 'creative',
+          }, newGeneration.id);
+
+          // Update generation with Modal job ID
+          await db.updateGeneration(newGeneration.id, {
+            workflowId: modalResponse.jobId,
+            status: 'processing',
+          });
+
+          console.log('[Retry Generation] Started Modal job:', modalResponse.jobId);
+
+          return {
+            generationId: newGeneration.id,
+            jobId: modalResponse.jobId,
+            status: 'processing',
+            retryCount: retryCount + 1,
+          };
+        } catch (error) {
+          // Update generation with error
+          await db.updateGeneration(newGeneration.id, {
+            status: 'failed',
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          });
+
+          throw error;
+        }
+      }),
   }),
 
   // Generation History router
