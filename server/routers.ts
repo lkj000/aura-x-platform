@@ -1848,9 +1848,10 @@ export const appRouter = router({
       .input(z.object({
         type: z.enum(['music', 'lyrics', 'stem_separation']).optional(),
         limit: z.number().default(50),
+        offset: z.number().default(0),
       }))
       .query(async ({ ctx, input }) => {
-        return db.getUserGenerations(ctx.user.id);
+        return db.getUserGenerations(ctx.user.id, input.limit, input.offset);
       }),
 
     // Toggle favorite

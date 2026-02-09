@@ -200,11 +200,16 @@ export async function createGeneration(generation: InsertGeneration): Promise<Ge
   return inserted[0]!;
 }
 
-export async function getUserGenerations(userId: number): Promise<Generation[]> {
+export async function getUserGenerations(userId: number, limit: number = 50, offset: number = 0): Promise<Generation[]> {
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(generations).where(eq(generations.userId, userId));
+  return db.select()
+    .from(generations)
+    .where(eq(generations.userId, userId))
+    .orderBy(desc(generations.createdAt))
+    .limit(limit)
+    .offset(offset);
 }
 
 export async function getGenerationById(generationId: number): Promise<Generation | undefined> {

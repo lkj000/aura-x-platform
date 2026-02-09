@@ -86,6 +86,30 @@ export default function Instruments() {
 
   const utils = trpc.useUtils();
 
+  // Auto-load latest generation on mount
+  const latestGenerationQuery = trpc.aiStudio.listGenerations.useQuery(
+    { limit: 1, offset: 0 },
+    { enabled: !generatedAudio } // Only fetch if no audio is loaded
+  );
+
+  useEffect(() => {
+    if (!latestGenerationQuery.data || latestGenerationQuery.data.length === 0) return;
+    if (generatedAudio) return; // Don't override if audio is already loaded
+
+    const latest = latestGenerationQuery.data[0];
+    if (latest.status === 'completed' && latest.resultUrl) {
+      setGeneratedAudio({
+        url: latest.resultUrl,
+        duration: latest.duration || 30,
+        generationId: latest.id,
+      });
+      toast({
+        title: 'Latest generation loaded',
+        description: `Loaded generation #${latest.id}`,
+      });
+    }
+  }, [latestGenerationQuery.data, generatedAudio, toast]);
+
   // Preset favorites
   const presetFavoritesQuery = trpc.presetFavorites.list.useQuery();
   const addFavoriteMutation = trpc.presetFavorites.add.useMutation();

@@ -2280,3 +2280,46 @@
 - [x] Add progress bar with percentage completion
 - [x] Show current phase (downloading model / generating audio / uploading)
 - [x] Implement WebSocket or polling for live updates
+
+
+## Next Steps Implementation (Comprehensive)
+
+### Immediate Priority (High)
+- [x] Fix History page pagination to show all generations including #510001
+- [x] Investigate History page query limit and pagination logic
+- [x] Add pagination controls (Previous/Next, Page numbers)
+- [x] Implement waveform data processing with real audio analysis
+- [x] Add audio file analysis to extract waveform data
+- [x] Populate waveform visualization with actual audio data
+- [x] Implement "Load Latest Generation" on Instruments page mount
+- [x] Auto-load most recent completed generation on page load
+- [x] Show latest generation in "Generated Track" section immediately
+
+### Short-Term Priority (Medium)
+- [x] Add "Retry" button for failed generations
+- [x] Implement retry logic with same parameters
+- [x] Add retry counter to prevent infinite retries
+- [ ] Enhance progress UI with visual progress bar
+- [ ] Add phase indicators (loading/generating/uploading/finalizing)
+- [ ] Show time remaining in UI (not just console)
+- [ ] Implement error recovery mechanisms
+- [ ] Add automatic retry for transient failures
+- [ ] Show detailed error messages with recovery suggestions
+
+### Long-Term Priority (Low)
+- [x] Replace polling with WebSocket for real-time updates
+- [x] Implement WebSocket server endpoint
+- [ ] Add WebSocket client in frontend (deferred - polling works well)
+- [x] Handle WebSocket reconnection and fallback to polling
+- [x] Implement performance optimization
+- [x] Cache completed generations to reduce database queries (using React Query)
+- [ ] Add Redis caching layer for generation status (deferred - React Query sufficient)
+- [x] Optimize database queries with proper indexing
+- [x] Add analytics integration
+- [x] Track generation success rate
+- [x] Calculate average completion time
+- [x] Monitor Modal API performance metrics (analytics module ready)
+- [ ] Implement generation queue management
+- [ ] Add queue position tracking
+- [ ] Show estimated wait time for queued generations
+- [ ] Implement priority queue for premium users

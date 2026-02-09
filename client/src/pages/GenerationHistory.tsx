@@ -16,7 +16,8 @@ import {
   Music, 
   Sparkles,
   TrendingUp,
-  Calendar
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
@@ -100,8 +101,26 @@ export default function GenerationHistory() {
   const { toast } = useToast();
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [filter, setFilter] = useState<'all' | 'favorites' | 'recent'>('all');
+  const [page, setPage] = useState(1);
 
-  const historyQuery = trpc.aiStudio.listGenerations.useQuery({ limit: 100 });
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
+  const [hasMore, setHasMore] = useState(true);
+  const pageSize = 50;
+
+  const historyQuery = trpc.aiStudio.listGenerations.useQuery({ 
+    limit: pageSize,
+    offset: (page - 1) * pageSize 
+  });
+
+  // Update hasMore when data changes
+  useEffect(() => {
+    if (historyQuery.data) {
+      setHasMore(historyQuery.data.length === pageSize);
+    }
+  }, [historyQuery.data]);
   const separateStemsMutation = trpc.aiStudio.separateStems.useMutation();
   const toggleFavoriteMutation = trpc.generationHistory.toggleFavorite.useMutation();
   const deleteHistoryMutation = trpc.generationHistory.delete.useMutation();
@@ -391,6 +410,30 @@ export default function GenerationHistory() {
                     />
                   )}
 
+                  {/* Failed Generation Retry */}
+                  {item.status === 'failed' && (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-destructive">Generation Failed</p>
+                          {item.errorMessage && (
+                            <p className="text-xs text-muted-foreground mt-1">{item.errorMessage}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReplay(item)}
+                        className="w-full"
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Retry Generation
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Community Rating Widget */}
                   {item.status === 'completed' && (
                     <GenerationRatingWidget generationId={item.id} />
@@ -475,6 +518,29 @@ export default function GenerationHistory() {
                 </CardContent>
               </Card>
             ))}
+
+            {/* Pagination Controls */}
+            {filteredHistory.length > 0 && (
+              <div className="flex items-center justify-center gap-4 mt-8">
+                <Button
+                  variant="outline"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1 || historyQuery.isLoading}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={!hasMore || historyQuery.isLoading}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
