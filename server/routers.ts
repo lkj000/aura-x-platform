@@ -5,6 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import * as modalClient from './modalClient';
+import { getQueuePosition, getQueueStats } from './queueManager';
 import { users, userQueueStats, userPreferences, customPresets } from '../drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getMaxConcurrentJobs } from '../shared/tierConfig';
@@ -532,6 +533,19 @@ export const appRouter = router({
 
           throw error;
         }
+      }),
+
+    // Get queue position for a generation
+    getQueuePosition: protectedProcedure
+      .input(z.object({ generationId: z.number() }))
+      .query(async ({ input }) => {
+        return await getQueuePosition(input.generationId);
+      }),
+
+    // Get queue statistics
+    getQueueStats: protectedProcedure
+      .query(async () => {
+        return await getQueueStats();
       }),
 
     // Fail generation (called by frontend on timeout)
