@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import PerformanceMetricsChart from '@/components/comparison/PerformanceMetricsChart';
+import VideoDemo from '@/components/comparison/VideoDemo';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -573,6 +575,12 @@ export default function Comparison() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Performance Metrics */}
+        <PerformanceMetricsChart />
+
+        {/* Video Demo */}
+        <VideoDemo />
 
         {/* Call to Action */}
         <Card className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-purple-500/50">
