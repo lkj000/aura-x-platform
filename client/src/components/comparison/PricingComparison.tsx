@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, TrendingDown, Calculator, Zap, Check, X } from 'lucide-react';
+import { DollarSign, TrendingDown, Calculator, Zap, Check, X, User, Briefcase, Building2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface PricingTier {
   name: string;
@@ -114,8 +115,42 @@ const pricingTiers: PricingTier[] = [
   },
 ];
 
+interface PresetScenario {
+  name: string;
+  generations: number;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}
+
+const presetScenarios: PresetScenario[] = [
+  {
+    name: 'Hobbyist',
+    generations: 50,
+    icon: User,
+    description: 'Casual music creation',
+  },
+  {
+    name: 'Producer',
+    generations: 500,
+    icon: Briefcase,
+    description: 'Professional production',
+  },
+  {
+    name: 'Studio',
+    generations: 2000,
+    icon: Building2,
+    description: 'High-volume studio',
+  },
+];
+
 export default function PricingComparison() {
   const [monthlyGenerations, setMonthlyGenerations] = useState(100);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  const handlePresetClick = (preset: PresetScenario) => {
+    setMonthlyGenerations(preset.generations);
+    setActivePreset(preset.name);
+  };
 
   const calculateMonthlyCost = (tier: PricingTier, generations: number) => {
     if (tier.model === 'subscription' && tier.monthlyBase && tier.includedGenerations) {
@@ -170,6 +205,42 @@ export default function PricingComparison() {
             <CardDescription>Adjust monthly generation volume to see cost comparison</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Preset Scenarios */}
+            <div>
+              <label className="text-sm font-medium mb-3 block">Quick Scenarios</label>
+              <div className="grid grid-cols-3 gap-3">
+                {presetScenarios.map((preset) => {
+                  const Icon = preset.icon;
+                  const isActive = activePreset === preset.name;
+                  return (
+                    <Button
+                      key={preset.name}
+                      variant={isActive ? 'default' : 'outline'}
+                      className={`flex flex-col items-center gap-2 h-auto py-4 ${
+                        isActive
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 border-0 hover:from-purple-600 hover:to-pink-600'
+                          : 'hover:bg-purple-500/10 hover:border-purple-500/50'
+                      }`}
+                      onClick={() => handlePresetClick(preset)}
+                    >
+                      <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-purple-400'}`} />
+                      <div className="text-center">
+                        <div className={`font-bold text-sm ${isActive ? 'text-white' : ''}`}>
+                          {preset.name}
+                        </div>
+                        <div className={`text-xs ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
+                          {preset.generations} / mo
+                        </div>
+                        <div className={`text-xs ${isActive ? 'text-white/60' : 'text-muted-foreground'}`}>
+                          {preset.description}
+                        </div>
+                      </div>
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium">Monthly Generations</label>
@@ -179,7 +250,10 @@ export default function PricingComparison() {
               </div>
               <Slider
                 value={[monthlyGenerations]}
-                onValueChange={(value) => setMonthlyGenerations(value[0])}
+                onValueChange={(value) => {
+                  setMonthlyGenerations(value[0]);
+                  setActivePreset(null); // Clear active preset when manually adjusting
+                }}
                 min={10}
                 max={1000}
                 step={10}
