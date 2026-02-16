@@ -2489,4 +2489,132 @@
 - [x] Verify cost calculations update correctly
 - [x] Test interaction between presets and manual slider adjustment
 - [x] Validate responsive design on mobile/tablet
-- [ ] Save checkpoint with preset scenarios
+- [x] Save checkpoint with preset scenarios
+
+## Level-5 Autonomous DJ Set Generator Integration
+
+### Phase 1: Database Schema & Core Models
+- [x] Design `dj_tracks` table (id, user_id, file_path, file_type, sha256, duration_sec, created_at)
+- [x] Design `dj_track_features` table (track_id, bpm, bpm_confidence, key, key_confidence, energy_curve_json, segments_json, lufs, true_peak, analyzed_at)
+- [x] Design `dj_stems` table (track_id, model_version, vocals_path, drums_path, bass_path, other_path, created_at)
+- [x] Design `dj_performance_plans` table (id, user_id, name, duration_target_sec, preset, risk_level, plan_json, created_at)
+- [x] Design `dj_renders` table (id, plan_id, mix_path, cue_sheet_path, status, created_at, completed_at)
+- [x] Create Drizzle schema definitions for all DJ tables
+- [x] Run `pnpm db:push` to apply schema changes
+
+### Phase 2: File Upload & Track Management UI
+- [x] Create `/dj-studio` page with DashboardLayout
+- [x] Build `DJTrackUploader` component (drag-drop for mp3/mp4/wav)
+- [x] Build `DJTrackLibrary` component (grid view with waveforms, BPM, key)
+- [x] Implement track selection UI (checkboxes, select all, filters)
+- [x] Add track metadata display (duration, file size, format)
+- [x] Create track deletion functionality
+
+### Phase 3: Backend - Track Ingestion & Analysis
+- [ ] Create tRPC procedure `djStudio.uploadTrack` (handle file upload to S3)
+- [ ] Create tRPC procedure `djStudio.analyzeTrack` (trigger analysis job)
+- [ ] Implement FFmpeg integration for audio decoding (mp3/mp4/wav → wav)
+- [ ] Integrate Essentia for BPM/beatgrid detection
+- [ ] Integrate Essentia for key detection (Camelot wheel mapping)
+- [ ] Implement energy curve extraction (0-1 scale over time)
+- [ ] Implement segment detection (intro/verse/drop/breakdown/outro)
+- [ ] Calculate LUFS loudness and true peak
+- [ ] Store analysis results in `dj_track_features` table
+- [ ] Create tRPC procedure `djStudio.getTrackFeatures` (retrieve analysis)
+
+### Phase 4: Stem Separation Integration
+- [ ] Research Demucs integration options (local vs API)
+- [ ] Create tRPC procedure `djStudio.separateStems` (trigger stem separation)
+- [ ] Implement Demucs stem separation (vocals/drums/bass/other)
+- [ ] Upload stems to S3 with organized folder structure
+- [ ] Store stem paths in `dj_stems` table
+- [ ] Create stem caching logic (check before re-processing)
+- [ ] Add stem visualization in UI (4-stem waveform display)
+
+### Phase 5: Set Planner - "DJ Brain"
+- [ ] Design vibe presets (Private School 3AM Peak, Deep & Soulful, Sunrise Cooldown)
+- [ ] Implement energy arc templates (warm → lift → peak → release → peak2 → outro)
+- [ ] Build harmonic compatibility checker (Camelot wheel logic)
+- [ ] Implement BPM drift policy (max +/-2 BPM per 2-3 tracks)
+- [ ] Create artist repetition avoidance logic
+- [ ] Build beam search algorithm for track ordering
+- [ ] Implement scoring function (energy + harmony + novelty)
+- [ ] Create tRPC procedure `djStudio.planSet` (generate performance plan)
+- [ ] Generate 3 variations (v1/v2/v3) like Suno
+
+### Phase 6: Transition Generator - "DJ Hands"
+- [ ] Define transition types (clean cut, EQ swap, loop-roll, echo out, stem tease, mashup)
+- [ ] Implement phrase alignment logic (8/16/32 bar boundaries)
+- [ ] Build beatmatching algorithm (phase alignment)
+- [ ] Create EQ automation templates (low-pass, high-pass crossfades)
+- [ ] Implement vocal tease transition (4-8 bar preview with stems)
+- [ ] Build mashup transition (vocal from next track over current drums)
+- [ ] Add auto-gain and loudness matching
+- [ ] Implement limiter to avoid clipping
+
+### Phase 7: Renderer & Export
+- [ ] Create tRPC procedure `djStudio.renderSet` (trigger render job)
+- [ ] Integrate Rubber Band for time-stretch and pitch-shift
+- [ ] Implement crossfade rendering with FFmpeg filtergraph
+- [ ] Build stem-based transition rendering (vocal teases, drum swaps)
+- [ ] Generate continuous 30-60 min WAV/MP3 file
+- [ ] Create cue sheet JSON (track start times, transitions, BPM/key timeline)
+- [ ] Add energy graph visualization for entire set
+- [ ] Upload rendered mix and cue sheet to S3
+- [ ] Store render results in `dj_renders` table
+
+### Phase 8: Set Generator UI
+- [ ] Create "Generate Set" modal with duration selector (30/45/60 min)
+- [ ] Build vibe preset selector (cards with descriptions)
+- [ ] Add risk slider (Safe harmonic ↔ Wild creative)
+- [ ] Implement "Allow mashups" toggle
+- [ ] Show loading state with progress updates during generation
+- [ ] Display 3 variations (v1/v2/v3) with preview cards
+- [ ] Add "Regenerate" button for new variations
+- [ ] Build set preview player with waveform and cue points
+
+### Phase 9: Playback & Cue Sheet UI
+- [ ] Create `DJSetPlayer` component with audio playback
+- [ ] Build waveform visualization with cue point markers
+- [ ] Display track transitions on timeline
+- [ ] Show current track info (BPM, key, energy level)
+- [ ] Add transition type indicators (icons for EQ swap, stem tease, etc.)
+- [ ] Implement seek functionality (click waveform to jump)
+- [ ] Build energy curve graph overlay
+- [ ] Add download buttons (mix.mp3, cue_sheet.json)
+
+### Phase 10: Advanced Features (Phase 2)
+- [ ] Implement "Extend" feature (loop-aware intro/outro extension)
+- [ ] Build "Mashup" engine (full stem-based mashups)
+- [ ] Add "Cover" generation (style transfer to different genre)
+- [ ] Implement "Remix" feature (arrangement transformation)
+- [ ] Build "Sample" extraction (loop/chop extraction and reuse)
+- [ ] Create bridge generator (8-32 bar groove bridges)
+- [ ] Add motif callback system (recurring musical themes)
+
+### Phase 11: Agent Intelligence Layer
+- [ ] Implement Curator Agent (track selection logic)
+- [ ] Build Director Agent (performance arc decisions)
+- [ ] Create Audio Engineer Agent (DSP automation)
+- [ ] Add self-evaluation metrics (clash score, energy smoothness, vocal overlap)
+- [ ] Implement auto-iteration (revise plan based on metrics)
+- [ ] Build "reasoning report" (explain why tracks/transitions chosen)
+- [ ] Add LLM integration for narrative intent ("make crowd cry at 3AM")
+
+### Phase 12: Testing & Polish
+- [ ] Test full workflow: upload → analyze → plan → render → playback
+- [ ] Verify stem separation quality across different tracks
+- [ ] Test all transition types (clean cut, EQ swap, stem tease, mashup)
+- [ ] Validate harmonic mixing (no key clashes)
+- [ ] Check BPM drift stays within policy
+- [ ] Test energy curve follows preset arc
+- [ ] Verify cue sheet accuracy (timestamps match audio)
+- [ ] Test with 30/45/60 minute durations
+- [ ] Save checkpoint with DJ Set Generator complete
+
+### Phase 13: Documentation & User Guide
+- [ ] Write user guide for DJ Set Generator
+- [ ] Document vibe presets and their characteristics
+- [ ] Create tutorial video for first-time users
+- [ ] Add tooltips and help text throughout UI
+- [ ] Document technical architecture for future development

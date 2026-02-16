@@ -24,6 +24,7 @@ import PatternLibrary from './pages/PatternLibrary';
 import SamplePackBrowser from './pages/SamplePackBrowser';
 import ChordLibrary from './pages/ChordLibrary';
 import Comparison from './pages/Comparison';
+import DJStudio from './pages/DJStudio';
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/my-packs" component={SamplePackBrowser} />
       <Route path="/chords" component={ChordLibrary} />
       <Route path="/comparison" component={Comparison} />
+      <Route path="/dj-studio" component={DJStudio} />
       <Route path="/settings" component={Settings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

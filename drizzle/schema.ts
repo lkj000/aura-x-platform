@@ -732,3 +732,171 @@ export const userPreferences = mysqlTable('userPreferences', {
 
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type InsertUserPreference = typeof userPreferences.$inferInsert;
+
+/**
+ * ============================================================================
+ * DJ SET GENERATOR TABLES
+ * Level-5 Autonomous DJ/Music Performance Intelligence System
+ * ============================================================================
+ */
+
+/**
+ * DJ Tracks table - User's uploaded audio files for DJ set generation
+ */
+export const djTracks = mysqlTable("dj_tracks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to users
+  name: varchar("name", { length: 255 }).notNull(),
+  fileUrl: text("fileUrl").notNull(), // S3 URL to original audio file
+  fileKey: varchar("fileKey", { length: 500 }).notNull(), // S3 key for file management
+  fileType: varchar("fileType", { length: 20 }).notNull(), // "mp3", "mp4", "wav"
+  fileSize: int("fileSize").notNull(), // Size in bytes
+  sha256: varchar("sha256", { length: 64 }).notNull(), // File hash for deduplication
+  durationSec: decimal("durationSec", { precision: 10, scale: 3 }).$type<number>(), // Duration in seconds
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DJTrack = typeof djTracks.$inferSelect;
+export type InsertDJTrack = typeof djTracks.$inferInsert;
+
+/**
+ * DJ Track Features table - Analysis results for each track
+ */
+export const djTrackFeatures = mysqlTable("dj_track_features", {
+  id: int("id").autoincrement().primaryKey(),
+  trackId: int("trackId").notNull().unique(), // Foreign key to dj_tracks
+  // BPM & Beatgrid
+  bpm: decimal("bpm", { precision: 6, scale: 2 }).$type<number>(), // e.g., 112.50
+  bpmConfidence: decimal("bpmConfidence", { precision: 3, scale: 2 }).$type<number>(), // 0.00 to 1.00
+  beatgrid: json("beatgrid"), // Array of beat timestamps
+  downbeats: json("downbeats"), // Array of downbeat timestamps
+  // Key & Harmony
+  key: varchar("key", { length: 10 }), // e.g., "Fm", "C#"
+  keyConfidence: decimal("keyConfidence", { precision: 3, scale: 2 }).$type<number>(), // 0.00 to 1.00
+  camelotKey: varchar("camelotKey", { length: 5 }), // e.g., "1A", "8B"
+  compatibleKeys: json("compatibleKeys"), // Array of compatible Camelot keys
+  // Energy & Dynamics
+  energyCurve: json("energyCurve"), // Array of energy values (0-1) over time
+  energyAvg: decimal("energyAvg", { precision: 3, scale: 2 }).$type<number>(), // Average energy 0.00 to 1.00
+  energyPeak: decimal("energyPeak", { precision: 3, scale: 2 }).$type<number>(), // Peak energy 0.00 to 1.00
+  // Loudness
+  lufs: decimal("lufs", { precision: 5, scale: 2 }).$type<number>(), // Integrated loudness (LUFS)
+  truePeak: decimal("truePeak", { precision: 5, scale: 2 }).$type<number>(), // True peak (dBTP)
+  // Segments
+  segments: json("segments"), // Array of {type, start, end} for intro/verse/drop/break/outro
+  // Mixability Score
+  mixabilityScore: decimal("mixabilityScore", { precision: 3, scale: 2 }).$type<number>(), // 0.00 to 1.00
+  // Analysis Metadata
+  analyzerVersion: varchar("analyzerVersion", { length: 50 }).default("1.0.0"),
+  analyzedAt: timestamp("analyzedAt").defaultNow().notNull(),
+});
+
+export type DJTrackFeatures = typeof djTrackFeatures.$inferSelect;
+export type InsertDJTrackFeatures = typeof djTrackFeatures.$inferInsert;
+
+/**
+ * DJ Stems table - Separated stems for each track
+ */
+export const djStems = mysqlTable("dj_stems", {
+  id: int("id").autoincrement().primaryKey(),
+  trackId: int("trackId").notNull(), // Foreign key to dj_tracks
+  modelVersion: varchar("modelVersion", { length: 50 }).notNull(), // e.g., "htdemucs", "demucs_v4"
+  vocalsUrl: text("vocalsUrl"), // S3 URL to vocals stem
+  vocalsKey: varchar("vocalsKey", { length: 500 }), // S3 key
+  drumsUrl: text("drumsUrl"), // S3 URL to drums stem
+  drumsKey: varchar("drumsKey", { length: 500 }), // S3 key
+  bassUrl: text("bassUrl"), // S3 URL to bass stem
+  bassKey: varchar("bassKey", { length: 500 }), // S3 key
+  otherUrl: text("otherUrl"), // S3 URL to other/melodic stem
+  otherKey: varchar("otherKey", { length: 500 }), // S3 key
+  processingTimeSec: int("processingTimeSec"), // Time taken to separate stems
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DJStems = typeof djStems.$inferSelect;
+export type InsertDJStems = typeof djStems.$inferInsert;
+
+/**
+ * DJ Performance Plans table - Generated DJ set plans
+ */
+export const djPerformancePlans = mysqlTable("dj_performance_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Foreign key to users
+  name: varchar("name", { length: 255 }).notNull(),
+  durationTargetSec: int("durationTargetSec").notNull(), // Target duration (1800, 2700, 3600)
+  preset: varchar("preset", { length: 100 }).notNull(), // "private_school_3am", "deep_soulful", "sunrise_cooldown"
+  riskLevel: decimal("riskLevel", { precision: 3, scale: 2 }).$type<number>().notNull(), // 0.00 (safe) to 1.00 (wild)
+  allowVocalOverlay: boolean("allowVocalOverlay").default(false).notNull(),
+  // Performance Plan JSON
+  planJson: json("planJson").notNull(), // Full PerformancePlan object
+  // Metadata
+  trackCount: int("trackCount").notNull(),
+  transitionCount: int("transitionCount").notNull(),
+  // Quality Metrics
+  harmonicClashScore: decimal("harmonicClashScore", { precision: 3, scale: 2 }).$type<number>(), // Lower is better
+  energySmoothnessScore: decimal("energySmoothnessScore", { precision: 3, scale: 2 }).$type<number>(), // Higher is better
+  vocalOverlapScore: decimal("vocalOverlapScore", { precision: 3, scale: 2 }).$type<number>(), // Lower is better
+  // Variation Info
+  variationGroup: varchar("variationGroup", { length: 64 }), // UUID for v1/v2/v3 grouping
+  variationIndex: int("variationIndex"), // 1, 2, or 3
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DJPerformancePlan = typeof djPerformancePlans.$inferSelect;
+export type InsertDJPerformancePlan = typeof djPerformancePlans.$inferInsert;
+
+/**
+ * DJ Renders table - Rendered DJ set mixes
+ */
+export const djRenders = mysqlTable("dj_renders", {
+  id: int("id").autoincrement().primaryKey(),
+  planId: int("planId").notNull(), // Foreign key to dj_performance_plans
+  userId: int("userId").notNull(), // Foreign key to users
+  mixUrl: text("mixUrl"), // S3 URL to final mix.wav/mp3
+  mixKey: varchar("mixKey", { length: 500 }), // S3 key
+  cueSheetUrl: text("cueSheetUrl"), // S3 URL to cue_sheet.json
+  cueSheetKey: varchar("cueSheetKey", { length: 500 }), // S3 key
+  // Render Options
+  format: varchar("format", { length: 10 }).default("mp3").notNull(), // "wav", "mp3"
+  bitrate: int("bitrate").default(320), // For MP3: 128, 192, 256, 320
+  // Status
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  errorMessage: text("errorMessage"),
+  // Timing
+  renderTimeSec: int("renderTimeSec"), // Time taken to render
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type DJRender = typeof djRenders.$inferSelect;
+export type InsertDJRender = typeof djRenders.$inferInsert;
+
+/**
+ * DJ Vibe Presets table - Predefined performance arc templates
+ */
+export const djVibePresets = mysqlTable("dj_vibe_presets", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  displayName: varchar("displayName", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // "amapiano", "general", "experimental"
+  // Energy Arc Template
+  energyArc: json("energyArc").notNull(), // Array of {phase, targetEnergy, durationPercent}
+  // BPM Curve
+  targetBpmCurve: json("targetBpmCurve").notNull(), // Array of BPM values over time
+  // Constraints
+  harmonicStrictness: decimal("harmonicStrictness", { precision: 3, scale: 2 }).$type<number>().notNull(), // 0.00 to 1.00
+  maxDeltaBpmPerTransition: int("maxDeltaBpmPerTransition").default(3).notNull(),
+  maxSemitonesShift: int("maxSemitonesShift").default(2).notNull(),
+  allowVocalOverlay: boolean("allowVocalOverlay").default(false).notNull(),
+  // Transition Preferences
+  transitionTypeWeights: json("transitionTypeWeights").notNull(), // {clean_cut: 0.3, eq_swap: 0.4, ...}
+  // Metadata
+  icon: varchar("icon", { length: 50 }).notNull(), // Emoji or icon name
+  isBuiltIn: boolean("isBuiltIn").default(true).notNull(),
+  usageCount: int("usageCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DJVibePreset = typeof djVibePresets.$inferSelect;
+export type InsertDJVibePreset = typeof djVibePresets.$inferInsert;
