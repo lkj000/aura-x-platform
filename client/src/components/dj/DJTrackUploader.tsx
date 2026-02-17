@@ -1,7 +1,7 @@
 import { useState, useRef, DragEvent, ChangeEvent } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, X, Loader2, CheckCircle2, AlertCircle, Folder } from "lucide-react";
 import { toast } from "sonner";
 
 interface UploadingFile {
@@ -19,6 +19,7 @@ export default function DJTrackUploader({ onUploadComplete }: DJTrackUploaderPro
   const [isDragging, setIsDragging] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const ACCEPTED_FORMATS = [".mp3", ".mp4", ".wav"];
   const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -146,13 +147,62 @@ export default function DJTrackUploader({ onUploadComplete }: DJTrackUploaderPro
     e.stopPropagation();
   };
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = e.dataTransfer.files;
-    handleFiles(files);
+    // Handle both files and folders from drag-drop
+    const items = e.dataTransfer.items;
+    if (items) {
+      const files: File[] = [];
+      const promises: Promise<void>[] = [];
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i].webkitGetAsEntry();
+        if (item) {
+          promises.push(traverseFileTree(item, files));
+        }
+      }
+
+      await Promise.all(promises);
+      
+      // Create FileList-like object
+      const fileList = {
+        length: files.length,
+        item: (index: number) => files[index],
+        [Symbol.iterator]: function* () {
+          for (let i = 0; i < files.length; i++) {
+            yield files[i];
+          }
+        },
+      } as FileList;
+
+      handleFiles(fileList);
+    } else {
+      // Fallback for browsers that don't support DataTransferItemList
+      const files = e.dataTransfer.files;
+      handleFiles(files);
+    }
+  };
+
+  // Recursively traverse folder structure
+  const traverseFileTree = async (item: any, files: File[]): Promise<void> => {
+    return new Promise((resolve) => {
+      if (item.isFile) {
+        item.file((file: File) => {
+          files.push(file);
+          resolve();
+        });
+      } else if (item.isDirectory) {
+        const dirReader = item.createReader();
+        dirReader.readEntries(async (entries: any[]) => {
+          const promises = entries.map((entry) => traverseFileTree(entry, files));
+          await Promise.all(promises);
+          resolve();
+        });
+      }
+    });
   };
 
   const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -167,6 +217,20 @@ export default function DJTrackUploader({ onUploadComplete }: DJTrackUploaderPro
 
   const handleBrowseClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleBrowseFolderClick = () => {
+    folderInputRef.current?.click();
+  };
+
+  const handleFolderInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    handleFiles(files);
+
+    // Reset input so same folder can be selected again
+    if (folderInputRef.current) {
+      folderInputRef.current.value = "";
+    }
   };
 
   const removeFile = (index: number) => {
@@ -206,16 +270,32 @@ export default function DJTrackUploader({ onUploadComplete }: DJTrackUploaderPro
               Maximum file size: 100MB
             </p>
           </div>
-          <Button variant="outline" className="gap-2" onClick={handleBrowseClick}>
-            <Upload className="h-4 w-4" />
-            Browse Files
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleBrowseClick}>
+              <Upload className="h-4 w-4" />
+              Browse Files
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={handleBrowseFolderClick}>
+              <Folder className="h-4 w-4" />
+              Browse Folder
+            </Button>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
             multiple
             accept={ACCEPTED_FORMATS.join(",")}
             onChange={handleFileInputChange}
+            className="hidden"
+          />
+          <input
+            ref={folderInputRef}
+            type="file"
+            // @ts-ignore - webkitdirectory is not in TypeScript types but supported by browsers
+            webkitdirectory=""
+            directory=""
+            multiple
+            onChange={handleFolderInputChange}
             className="hidden"
           />
         </div>

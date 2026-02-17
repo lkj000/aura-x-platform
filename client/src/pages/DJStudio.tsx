@@ -1,6 +1,8 @@
 import { useState } from "react";
 import DJTrackUploader from "@/components/dj/DJTrackUploader";
 import DJTrackLibrary from "@/components/dj/DJTrackLibrary";
+import DJSetGenerator from "@/components/dj/DJSetGenerator";
+import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -129,19 +131,29 @@ export default function DJStudio() {
 
           {/* Generator Tab */}
           <TabsContent value="generator" className="flex-1 mt-6">
-            <Card className="p-12">
-              <div className="flex flex-col items-center justify-center gap-4 text-center">
-                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                  <Sparkles className="h-10 w-10 text-purple-500" />
+            {tracks.length === 0 ? (
+              <Card className="p-12">
+                <div className="flex flex-col items-center justify-center gap-4 text-center">
+                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                    <Sparkles className="h-10 w-10 text-purple-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Set Generator</h3>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                      Upload tracks to your library first, then generate autonomous DJ sets with AI-powered transitions
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold">Set Generator</h3>
-                  <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                    Upload tracks to your library first, then generate autonomous DJ sets with AI-powered transitions
-                  </p>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            ) : (
+              <DJSetGenerator
+                selectedTrackIds={selectedTrackIds}
+                onGenerate={(config) => {
+                  console.log("Generate set with config:", config);
+                  toast.success("Set generation started! (placeholder)");
+                }}
+              />
+            )}
           </TabsContent>
 
           {/* Player Tab */}

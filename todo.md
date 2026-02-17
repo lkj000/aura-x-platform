@@ -2618,3 +2618,47 @@
 - [ ] Create tutorial video for first-time users
 - [ ] Add tooltips and help text throughout UI
 - [ ] Document technical architecture for future development
+
+## DJ Studio Next Phase Implementation
+
+### Folder Upload Enhancement
+- [ ] Add folder upload support to DJTrackUploader (webkitdirectory attribute)
+- [ ] Implement recursive file scanning for nested folders
+- [ ] Add folder structure preview before upload
+- [ ] Handle duplicate file detection across folders
+- [ ] Add batch progress tracking for folder uploads
+
+### Backend tRPC Procedures
+- [ ] Create `djStudio.uploadTrack` procedure (S3 upload with SHA256 hash)
+- [ ] Create `djStudio.getTracks` procedure (fetch user's track library)
+- [ ] Create `djStudio.deleteTrack` procedure (remove from DB and S3)
+- [ ] Create `djStudio.analyzeTrack` procedure (trigger Modal analysis job)
+- [ ] Create `djStudio.separateStems` procedure (trigger Modal Demucs job)
+- [ ] Create `djStudio.getTrackFeatures` procedure (fetch analysis results)
+- [ ] Create `djStudio.getTrackStems` procedure (fetch stem URLs)
+
+### DJ Set Generator Interface
+- [ ] Create DJSetGenerator component with vibe preset selector
+- [ ] Add built-in vibe presets (Private School 3AM, Deep & Soulful, Sunrise Cooldown, etc.)
+- [ ] Implement duration picker (30/45/60 minutes)
+- [ ] Add risk level slider (0.0 = safe, 1.0 = wild)
+- [ ] Add "Allow Vocal Overlay" toggle
+- [ ] Create variation display (v1/v2/v3 with quality scores)
+- [ ] Add "Generate Set" button with loading state
+- [ ] Integrate with backend `djStudio.generateSet` procedure
+
+### Waveform Visualization
+- [ ] Install WaveSurfer.js or similar library
+- [ ] Create WaveformDisplay component
+- [ ] Integrate waveform into DJTrackLibrary cards
+- [ ] Add beat markers and energy curve overlay
+- [ ] Implement zoom and pan controls
+- [ ] Add playback position indicator
+
+### Testing & Integration
+- [ ] Test folder upload with nested directories
+- [ ] Test track upload to S3 with real files
+- [ ] Test analysis job triggering (placeholder until Modal backend ready)
+- [ ] Test DJ set generation UI flow
+- [ ] Test waveform rendering with real audio files
+- [ ] Save checkpoint with all enhancements
