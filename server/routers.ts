@@ -20,11 +20,13 @@ import { communityFeedbackRouter } from './communityFeedbackRouter';
 import { musicGenerationRouter } from './musicGenerationRouter';
 import { samplePackRouter } from './samplePackRouter';
 import { djStudioRouter } from './routers/djStudio';
+import { djStudioWebhooksRouter } from './routers/djStudioWebhooks';
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   djStudio: djStudioRouter,
+  djStudioWebhooks: djStudioWebhooksRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

@@ -2622,30 +2622,30 @@
 ## DJ Studio Next Phase Implementation
 
 ### Folder Upload Enhancement
-- [ ] Add folder upload support to DJTrackUploader (webkitdirectory attribute)
-- [ ] Implement recursive file scanning for nested folders
+- [x] Add folder upload support to DJTrackUploader (webkitdirectory attribute)
+- [x] Implement recursive file scanning for nested folders
 - [ ] Add folder structure preview before upload
 - [ ] Handle duplicate file detection across folders
-- [ ] Add batch progress tracking for folder uploads
+- [x] Add batch progress tracking for folder uploads
 
 ### Backend tRPC Procedures
-- [ ] Create `djStudio.uploadTrack` procedure (S3 upload with SHA256 hash)
-- [ ] Create `djStudio.getTracks` procedure (fetch user's track library)
-- [ ] Create `djStudio.deleteTrack` procedure (remove from DB and S3)
-- [ ] Create `djStudio.analyzeTrack` procedure (trigger Modal analysis job)
-- [ ] Create `djStudio.separateStems` procedure (trigger Modal Demucs job)
-- [ ] Create `djStudio.getTrackFeatures` procedure (fetch analysis results)
-- [ ] Create `djStudio.getTrackStems` procedure (fetch stem URLs)
+- [x] Create `djStudio.uploadTrack` procedure (S3 upload with SHA256 hash)
+- [x] Create `djStudio.getTracks` procedure (fetch user's track library)
+- [x] Create `djStudio.deleteTrack` procedure (remove from DB and S3)
+- [x] Create `djStudio.analyzeTrack` procedure (trigger Modal analysis job)
+- [x] Create `djStudio.separateStems` procedure (trigger Modal Demucs job)
+- [x] Create `djStudio.getTrackFeatures` procedure (fetch analysis results)
+- [x] Create `djStudio.getTrackStems` procedure (fetch stem URLs)
 
 ### DJ Set Generator Interface
-- [ ] Create DJSetGenerator component with vibe preset selector
-- [ ] Add built-in vibe presets (Private School 3AM, Deep & Soulful, Sunrise Cooldown, etc.)
-- [ ] Implement duration picker (30/45/60 minutes)
-- [ ] Add risk level slider (0.0 = safe, 1.0 = wild)
-- [ ] Add "Allow Vocal Overlay" toggle
+- [x] Create DJSetGenerator component with vibe preset selector
+- [x] Add built-in vibe presets (Private School 3AM, Deep & Soulful, Sunrise Cooldown, etc.)
+- [x] Implement duration picker (30/45/60 minutes)
+- [x] Add risk level slider (0.0 = safe, 1.0 = wild)
+- [x] Add "Allow Vocal Overlay" toggle
 - [ ] Create variation display (v1/v2/v3 with quality scores)
-- [ ] Add "Generate Set" button with loading state
-- [ ] Integrate with backend `djStudio.generateSet` procedure
+- [x] Add "Generate Set" button with loading state
+- [x] Integrate with backend `djStudio.generateSet` procedure
 
 ### Waveform Visualization
 - [ ] Install WaveSurfer.js or similar library
@@ -2662,3 +2662,73 @@
 - [ ] Test DJ set generation UI flow
 - [ ] Test waveform rendering with real audio files
 - [ ] Save checkpoint with all enhancements
+
+## Modal Python Backend Implementation
+
+### Infrastructure Setup
+- [x] Create Modal app configuration (modal_app.py)
+- [x] Set up Modal secrets for AWS S3 credentials
+- [x] Configure Modal volumes for model caching
+- [x] Set up Modal image with audio processing dependencies
+- [x] Create shared utilities for S3 operations
+
+### Audio Analysis Worker (FFmpeg + Essentia)
+- [x] Implement track duration extraction (FFmpeg)
+- [x] Implement BPM detection (Essentia RhythmExtractor2013)
+- [x] Implement key detection (Essentia KeyExtractor)
+- [x] Implement energy curve analysis (Essentia Energy + RMS)
+- [x] Implement segment detection (Essentia BeatTracker + OnsetDetection)
+- [x] Implement loudness analysis (Essentia Loudness + TruePeak)
+- [x] Implement downbeat detection for phrase alignment
+- [x] Save analysis results to database via webhook
+
+### Stem Separation Worker (Demucs)
+- [x] Implement Demucs model loading and caching
+- [x] Implement 4-stem separation (vocals, drums, bass, other)
+- [x] Implement stem upload to S3
+- [x] Save stem URLs to database via webhook
+- [ ] Add progress tracking and error handling
+
+### Temporal Workflow Integration
+- [ ] Create Temporal client in Node.js backend
+- [ ] Implement analysis workflow (trigger Modal, poll status, handle completion)
+- [ ] Implement stem separation workflow
+- [ ] Implement set generation workflow (multi-step: analyze → plan → render)
+- [ ] Add workflow status querying endpoint
+- [ ] Handle workflow failures and retries
+
+### Waveform Visualization
+- [ ] Install wavesurfer.js package
+- [ ] Create WaveformDisplay component
+- [ ] Integrate waveform into DJTrackLibrary cards
+- [ ] Add beat markers overlay
+- [ ] Add energy curve visualization
+- [ ] Implement zoom and pan controls
+- [ ] Add playback position indicator
+
+### Autonomous Set Planner Algorithm
+- [ ] Implement Camelot wheel harmonic mixing logic
+- [ ] Implement energy arc calculation (target curve vs actual)
+- [ ] Implement transition scoring (key compatibility, BPM delta, energy smoothness)
+- [ ] Implement vocal overlap detection and penalty
+- [ ] Implement track selection algorithm (greedy + backtracking)
+- [ ] Implement variation generation (3 different paths with quality scores)
+- [ ] Implement transition point detection (phrase boundaries, downbeats)
+- [ ] Save performance plans to database
+
+### Set Renderer (Audio Mixing)
+- [ ] Implement crossfade transition (FFmpeg)
+- [ ] Implement stem-based transition (isolate vocals, blend instrumentals)
+- [ ] Implement tempo adjustment (Rubber Band)
+- [ ] Implement EQ matching at transition points
+- [ ] Implement final mix rendering
+- [ ] Generate cue sheet with timestamps
+- [ ] Upload rendered mix to S3
+
+### Testing & Integration
+- [ ] Test track upload → analysis → display workflow
+- [ ] Test stem separation → display workflow
+- [ ] Test set generation → render → playback workflow
+- [ ] Test waveform visualization with real audio files
+- [ ] Test Temporal workflow error handling
+- [ ] Save checkpoint with complete Level-5 implementation
