@@ -2732,3 +2732,42 @@
 - [ ] Test waveform visualization with real audio files
 - [ ] Test Temporal workflow error handling
 - [ ] Save checkpoint with complete Level-5 implementation
+
+## Modal Deployment & Set Renderer
+
+### Modal Backend Deployment
+- [ ] Configure Modal secrets (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET, WEBHOOK_URL)
+- [ ] Test Modal app locally with `modal run modal_backend/modal_app.py`
+- [ ] Deploy Modal app to production with `modal deploy modal_backend/modal_app.py`
+- [ ] Verify webhook endpoints are accessible from Modal
+- [ ] Test track analysis workflow end-to-end
+- [ ] Test stem separation workflow end-to-end
+- [x] Create deployment documentation (DEPLOYMENT.md)
+
+### Waveform Integration
+- [x] Update DJTrackLibrary to use WaveformDisplay component
+- [x] Pass track audio URL to WaveformDisplay
+- [x] Show energy curve overlay on waveforms
+- [ ] Add beat marker visualization
+- [x] Implement waveform loading states
+- [x] Handle waveform errors gracefully
+
+### Set Renderer Worker
+- [x] Create render_dj_set Modal function
+- [x] Implement crossfade transition (FFmpeg filter_complex)
+- [x] Implement tempo adjustment with Rubber Band
+- [ ] Implement EQ matching between tracks
+- [x] Implement stem-based transitions (vocal isolation)
+- [x] Generate cue sheet with transition timestamps
+- [x] Upload final mix to S3
+- [x] Send completion webhook with render URLs
+
+### End-to-End Testing
+- [ ] Upload test tracks to DJ Studio
+- [ ] Verify analysis completes and features are saved
+- [ ] Generate DJ set with vibe preset
+- [ ] Verify 3 variations are created with quality scores
+- [ ] Render selected variation
+- [ ] Download and verify final mix quality
+- [ ] Save checkpoint with complete pipeline
+

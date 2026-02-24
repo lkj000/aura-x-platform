@@ -1,4 +1,5 @@
 import { useState } from "react";
+import WaveformDisplay from "./WaveformDisplay";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -206,9 +207,20 @@ export default function DJTrackLibrary({
                 </DropdownMenu>
               </div>
 
-              {/* Waveform Placeholder */}
-              <div className="h-16 bg-muted rounded flex items-center justify-center">
-                <Music2 className="h-8 w-8 text-muted-foreground" />
+              {/* Waveform */}
+              <div className="h-16 rounded overflow-hidden">
+                {track.isAnalyzed && track.fileUrl ? (
+                  <WaveformDisplay
+                    audioUrl={track.fileUrl}
+                    height={64}
+                    showControls={false}
+                    energyCurve={track.energyAvg ? [track.energyAvg] : undefined}
+                  />
+                ) : (
+                  <div className="h-full bg-muted rounded flex items-center justify-center">
+                    <Music2 className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
               </div>
 
               {/* Analysis Status */}

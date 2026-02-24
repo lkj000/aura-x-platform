@@ -406,6 +406,107 @@ def separate_stems(track_id: int, file_key: str, user_id: int) -> Dict[str, Any]
 
 
 # ============================================================================
+# DJ SET RENDERER
+# ============================================================================
+
+@app.function(
+    image=audio_image,
+    secrets=[modal.Secret.from_name("aura-x-aws-secrets")],
+    timeout=3600,  # 60 minutes max for long sets
+)
+def render_dj_set(
+    plan_id: int,
+    performance_plan: Dict[str, Any],
+    tracks_data: List[Dict[str, Any]],
+    user_id: int,
+    use_stem_transitions: bool = True
+) -> Dict[str, Any]:
+    """
+    Render complete DJ set from performance plan
+    
+    Args:
+        plan_id: Performance plan ID
+        performance_plan: Plan with tracks and transitions
+        tracks_data: List of track metadata
+        user_id: User ID for S3 path
+        use_stem_transitions: Use stem-based transitions if available
+    
+    Returns:
+        Render metadata (mix_url, cue_sheet, duration)
+    """
+    from set_renderer import render_dj_set as render_set
+    import tempfile
+    import os
+    
+    print(f"[Render] Starting render for plan {plan_id}")
+    
+    # Create temp output file
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_output:
+        output_path = tmp_output.name
+    
+    try:
+        # Render the set
+        metadata = render_set(
+            performance_plan,
+            tracks_data,
+            output_path,
+            use_stem_transitions
+        )
+        
+        print(f"[Render] Mix complete: {metadata['total_duration']:.1f}s, {metadata['num_transitions']} transitions")
+        
+        # Upload to S3
+        mix_key = f"dj-renders/{user_id}/{plan_id}/mix.mp3"
+        mix_url = upload_to_s3.remote(output_path, mix_key, "audio/mpeg")
+        
+        print(f"[Render] Uploaded mix: {mix_url}")
+        
+        # Generate cue sheet
+        cue_sheet = {
+            "plan_id": plan_id,
+            "total_duration": metadata["total_duration"],
+            "cue_points": metadata["cue_points"],
+            "num_transitions": metadata["num_transitions"],
+            "stem_transitions_used": metadata["stem_transitions_used"],
+        }
+        
+        # Upload cue sheet
+        cue_sheet_path = output_path.replace(".mp3", "_cuesheet.json")
+        with open(cue_sheet_path, "w") as f:
+            import json
+            json.dump(cue_sheet, f, indent=2)
+        
+        cue_sheet_key = f"dj-renders/{user_id}/{plan_id}/cuesheet.json"
+        cue_sheet_url = upload_to_s3.remote(cue_sheet_path, cue_sheet_key, "application/json")
+        
+        print(f"[Render] Uploaded cue sheet: {cue_sheet_url}")
+        
+        # Prepare result
+        result = {
+            "plan_id": plan_id,
+            "mix_url": mix_url,
+            "cue_sheet_url": cue_sheet_url,
+            "total_duration": metadata["total_duration"],
+            "num_transitions": metadata["num_transitions"],
+            "stem_transitions_used": metadata["stem_transitions_used"],
+        }
+        
+        # Send webhook to backend
+        send_webhook.remote("/api/dj-studio/render-complete", result)
+        
+        print(f"[Render] Complete for plan {plan_id}")
+        
+        return result
+        
+    finally:
+        # Cleanup
+        if os.path.exists(output_path):
+            os.unlink(output_path)
+        if os.path.exists(cue_sheet_path):
+            os.unlink(cue_sheet_path)
+
+
+# ============================================================================
 # DEPLOYMENT
 # ============================================================================
 
