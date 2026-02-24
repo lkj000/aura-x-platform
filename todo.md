@@ -2690,30 +2690,30 @@
 - [ ] Add progress tracking and error handling
 
 ### Temporal Workflow Integration
-- [ ] Create Temporal client in Node.js backend
-- [ ] Implement analysis workflow (trigger Modal, poll status, handle completion)
-- [ ] Implement stem separation workflow
-- [ ] Implement set generation workflow (multi-step: analyze → plan → render)
+- [x] Create Temporal client in Node.js backend
+- [x] Implement analysis workflow (trigger Modal, poll status, handle completion)
+- [x] Implement stem separation workflow
+- [x] Implement set generation workflow (multi-step: analyze → plan → render)
 - [ ] Add workflow status querying endpoint
 - [ ] Handle workflow failures and retries
 
 ### Waveform Visualization
-- [ ] Install wavesurfer.js package
-- [ ] Create WaveformDisplay component
+- [x] Install wavesurfer.js package
+- [x] Create WaveformDisplay component
 - [ ] Integrate waveform into DJTrackLibrary cards
-- [ ] Add beat markers overlay
-- [ ] Add energy curve visualization
+- [x] Add beat markers overlay
+- [x] Add energy curve visualization
 - [ ] Implement zoom and pan controls
-- [ ] Add playback position indicator
+- [x] Add playback position indicator
 
 ### Autonomous Set Planner Algorithm
-- [ ] Implement Camelot wheel harmonic mixing logic
-- [ ] Implement energy arc calculation (target curve vs actual)
-- [ ] Implement transition scoring (key compatibility, BPM delta, energy smoothness)
-- [ ] Implement vocal overlap detection and penalty
-- [ ] Implement track selection algorithm (greedy + backtracking)
-- [ ] Implement variation generation (3 different paths with quality scores)
-- [ ] Implement transition point detection (phrase boundaries, downbeats)
+- [x] Implement Camelot wheel harmonic mixing logic
+- [x] Implement energy arc calculation (target curve vs actual)
+- [x] Implement transition scoring (key compatibility, BPM delta, energy smoothness)
+- [x] Implement vocal overlap detection and penalty
+- [x] Implement track selection algorithm (greedy + backtracking)
+- [x] Implement variation generation (3 different paths with quality scores)
+- [x] Implement transition point detection (phrase boundaries, downbeats)
 - [ ] Save performance plans to database
 
 ### Set Renderer (Audio Mixing)
