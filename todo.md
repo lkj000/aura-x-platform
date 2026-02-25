@@ -2771,3 +2771,66 @@
 - [ ] Download and verify final mix quality
 - [ ] Save checkpoint with complete pipeline
 
+
+## Modal Backend Deployment & Advanced Features
+
+### Phase 1: Modal Backend Deployment
+- [ ] Install Modal CLI locally (`pip install modal`)
+- [ ] Authenticate Modal CLI (`modal token new`)
+- [ ] Create Modal secrets for AWS credentials
+- [ ] Test Modal app locally (`modal run modal_backend/modal_app.py::analyze_track`)
+- [ ] Deploy Modal app to production (`modal deploy modal_backend/modal_app.py`)
+- [ ] Verify Modal functions are accessible
+- [ ] Test end-to-end: upload track → trigger analysis → receive webhook
+- [ ] Test end-to-end: trigger stem separation → receive webhook
+- [ ] Test end-to-end: generate set plan → render mix → receive webhook
+
+### Phase 2: DJ Set Player UI
+- [ ] Create DJSetPlayer component with audio playback
+- [ ] Integrate WaveSurfer.js for set visualization
+- [ ] Add cue point markers on waveform
+- [ ] Implement playback controls (play/pause/seek)
+- [ ] Add transition preview (jump to transition points)
+- [ ] Display track names and timing information
+- [ ] Add download button for rendered mix
+- [ ] Add share functionality
+
+### Phase 3: Extend Feature (Loop Sections)
+- [ ] Design Extend UI (select section, set loop count)
+- [ ] Create `extend_track` Modal function
+- [ ] Implement beat-aligned loop detection
+- [ ] Implement seamless loop stitching (crossfade loop points)
+- [ ] Add tempo variation option (gradually increase BPM)
+- [ ] Add energy build option (gradually increase volume/filter)
+- [ ] Save extended track to S3
+- [ ] Add to track library with "Extended" badge
+
+### Phase 4: Mashup Feature (Blend Tracks)
+- [ ] Design Mashup UI (select 2+ tracks, set blend ratio)
+- [ ] Create `create_mashup` Modal function
+- [ ] Implement key/tempo matching for selected tracks
+- [ ] Implement stem-based blending (vocals from A, drums from B, etc.)
+- [ ] Add blend ratio slider (0-100% between tracks)
+- [ ] Add transition style selector (crossfade/cut/echo)
+- [ ] Generate mashup variations with different stem combinations
+- [ ] Save mashup to S3 and add to library
+
+### Phase 5: Remix Feature (Rearrange Stems)
+- [ ] Design Remix UI (stem timeline editor)
+- [ ] Create `create_remix` Modal function
+- [ ] Implement stem rearrangement (drag-drop timeline)
+- [ ] Add stem effects (reverb, delay, filter, distortion)
+- [ ] Add stem volume/pan controls
+- [ ] Implement quantized editing (snap to beat grid)
+- [ ] Generate remix variations with AI suggestions
+- [ ] Save remix to S3 and add to library
+
+### Phase 6: Integration & Testing
+- [ ] Add "Extend", "Mashup", "Remix" buttons to track library
+- [ ] Create modal dialogs for each feature
+- [ ] Implement progress tracking for long-running jobs
+- [ ] Add job queue UI (show pending/in-progress/completed)
+- [ ] Test all features with real audio files
+- [ ] Verify S3 uploads and database updates
+- [ ] Save final checkpoint
+
