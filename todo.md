@@ -2834,3 +2834,59 @@
 - [ ] Verify S3 uploads and database updates
 - [ ] Save final checkpoint
 
+
+## Advanced Features UI & Sample Feature
+
+### Extend Feature UI
+- [ ] Create ExtendFeature component with parameter controls
+- [ ] Add loop bars selector (4/8/16/32 bars)
+- [ ] Add loop count slider (2-8 repetitions)
+- [ ] Add tempo variation toggle and BPM range inputs
+- [ ] Add energy build toggle and type selector (volume/filter)
+- [ ] Add preview player for generated variations
+- [ ] Integrate with backend tRPC procedure
+
+### Mashup Feature UI
+- [ ] Create MashupFeature component with track selection
+- [ ] Add stem blend ratio sliders (vocals/drums/bass/other)
+- [ ] Add visual blend ratio indicators
+- [ ] Add transition style selector (crossfade/cut/echo)
+- [ ] Add preview player for 3 variations
+- [ ] Show key/tempo matching info
+- [ ] Integrate with backend tRPC procedure
+
+### Remix Feature UI
+- [ ] Create RemixFeature component with timeline editor
+- [ ] Build drag-drop timeline for stem segments
+- [ ] Add stem effect controls (reverb/delay/filter/distortion)
+- [ ] Add volume and pan sliders per segment
+- [ ] Add beat grid quantization toggle
+- [ ] Show AI-suggested variations (3 presets)
+- [ ] Add waveform preview for each stem
+- [ ] Integrate with backend tRPC procedure
+
+### Sample Feature Backend
+- [ ] Implement beat slicing algorithm (detect transients)
+- [ ] Create slice extraction with zero-crossing detection
+- [ ] Implement MIDI note mapping (slices → MIDI notes)
+- [ ] Add slice manipulation (reverse, pitch shift, time stretch)
+- [ ] Generate MIDI file export (.mid format)
+- [ ] Create sample pack export (WAV slices + MIDI)
+- [ ] Add slice preview generation
+
+### Sample Feature UI
+- [ ] Create SampleFeature component with waveform display
+- [ ] Add beat slice markers on waveform
+- [ ] Add slice selection and preview playback
+- [ ] Add slice manipulation controls (reverse/pitch/stretch)
+- [ ] Add MIDI keyboard mapping visualization
+- [ ] Add export options (MIDI/WAV/both)
+- [ ] Integrate with backend tRPC procedure
+
+### Integration & Testing
+- [ ] Add advanced features tabs to DJ Studio page
+- [ ] Test Extend feature end-to-end
+- [ ] Test Mashup feature end-to-end
+- [ ] Test Remix feature end-to-end
+- [ ] Test Sample feature end-to-end
+- [ ] Save checkpoint with all advanced features
