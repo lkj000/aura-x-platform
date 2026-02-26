@@ -4,6 +4,7 @@ import DJTrackLibrary from "@/components/dj/DJTrackLibrary";
 import DJSetGenerator from "@/components/dj/DJSetGenerator";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,27 +34,58 @@ import {
  */
 export default function DJStudio() {
   const [activeTab, setActiveTab] = useState("library");
-  const [tracks, setTracks] = useState<any[]>([]); // Will be typed properly with tRPC
   const [selectedTrackIds, setSelectedTrackIds] = useState<number[]>([]);
+  
+  // Fetch tracks from backend
+  const { data: tracks = [], refetch: refetchTracks } = trpc.djStudio.getTracks.useQuery();
+  
+  // Mutations
+  const analyzeMutation = trpc.djStudio.analyzeTrack.useMutation();
+  const stemsMutation = trpc.djStudio.separateStems.useMutation();
+  const deleteMutation = trpc.djStudio.deleteTrack.useMutation();
 
-  const handleUploadComplete = (trackIds: number[]) => {
-    // TODO: Fetch uploaded tracks from backend
+  const handleUploadComplete = async (trackIds: number[]) => {
     console.log("Uploaded track IDs:", trackIds);
+    // Refresh track library
+    await refetchTracks();
+    toast.success(`${trackIds.length} track(s) uploaded successfully`);
   };
 
-  const handleAnalyze = (trackIds: number[]) => {
-    // TODO: Trigger analysis via tRPC
-    console.log("Analyze tracks:", trackIds);
+  const handleAnalyze = async (trackIds: number[]) => {
+    try {
+      for (const trackId of trackIds) {
+        await analyzeMutation.mutateAsync({ trackId });
+      }
+      toast.success(`Analysis started for ${trackIds.length} track(s)`);
+      await refetchTracks();
+    } catch (error) {
+      toast.error("Failed to start analysis");
+    }
   };
 
-  const handleSeparateStems = (trackIds: number[]) => {
-    // TODO: Trigger stem separation via tRPC
-    console.log("Separate stems:", trackIds);
+  const handleSeparateStems = async (trackIds: number[]) => {
+    try {
+      for (const trackId of trackIds) {
+        await stemsMutation.mutateAsync({ trackId });
+      }
+      toast.success(`Stem separation started for ${trackIds.length} track(s)`);
+      await refetchTracks();
+    } catch (error) {
+      toast.error("Failed to start stem separation");
+    }
   };
 
-  const handleDelete = (trackIds: number[]) => {
-    // TODO: Delete tracks via tRPC
-    console.log("Delete tracks:", trackIds);
+  const handleDelete = async (trackIds: number[]) => {
+    try {
+      for (const trackId of trackIds) {
+        await deleteMutation.mutateAsync({ trackId });
+      }
+      toast.success(`${trackIds.length} track(s) deleted`);
+      await refetchTracks();
+      setSelectedTrackIds([]);
+    } catch (error) {
+      toast.error("Failed to delete tracks");
+    }
   };
 
   return (

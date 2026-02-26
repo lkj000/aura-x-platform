@@ -98,16 +98,17 @@ export const djStudioRouter = router({
 
         return {
           ...track,
+          durationSec: track.durationSec ?? 0, // Ensure non-null
           // Analysis status
           isAnalyzed: !!features,
           isAnalyzing: false, // TODO: Check job status from Temporal
-          // Features
-          bpm: features?.bpm,
-          bpmConfidence: features?.bpmConfidence,
-          key: features?.key,
-          camelotKey: features?.camelotKey,
-          energyAvg: features?.energyAvg,
-          lufs: features?.lufs,
+          // Features (convert null to undefined for consistency)
+          bpm: features?.bpm ?? undefined,
+          bpmConfidence: features?.bpmConfidence ?? undefined,
+          key: features?.key ?? undefined,
+          camelotKey: features?.camelotKey ?? undefined,
+          energyAvg: features?.energyAvg ?? undefined,
+          lufs: features?.lufs ?? undefined,
           // Stems status
           hasStemsSeparated: !!stems,
           isSeparatingStems: false, // TODO: Check job status from Temporal

@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, X, Loader2, CheckCircle2, AlertCircle, Folder } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 interface UploadingFile {
   file: File;
@@ -71,12 +72,34 @@ export default function DJTrackUploader({ onUploadComplete }: DJTrackUploaderPro
 
     setUploadingFiles((prev) => [...prev, ...newUploadingFiles]);
 
-    // Upload files (placeholder - will connect to tRPC in Phase 4)
+    // Upload files to backend
+    const uploadedTrackIds: number[] = [];
+    
     for (let i = 0; i < validFiles.length; i++) {
       const file = validFiles[i];
       try {
-        // Simulate upload progress
-        await simulateUpload(i, newUploadingFiles.length);
+        // Read file as base64
+        const fileData = await readFileAsBase64(file);
+        
+        // Update progress to show encoding complete
+        setUploadingFiles((prev) =>
+          prev.map((uf) =>
+            uf.file === file ? { ...uf, progress: 50 } : uf
+          )
+        );
+        
+        // Map MIME type to file type enum
+        const extension = file.name.split(".").pop()?.toLowerCase() as "mp3" | "mp4" | "wav";
+        
+        // Upload to backend via tRPC
+        const result = await uploadTrackMutation.mutateAsync({
+          fileName: file.name,
+          fileData,
+          fileType: extension,
+          fileSize: file.size,
+        });
+        
+        uploadedTrackIds.push(result.trackId);
         
         // Update status to completed
         setUploadingFiles((prev) =>
@@ -87,6 +110,8 @@ export default function DJTrackUploader({ onUploadComplete }: DJTrackUploaderPro
 
         toast.success(`${file.name} uploaded successfully`);
       } catch (error) {
+        console.error("Upload error:", error);
+        
         // Update status to error
         setUploadingFiles((prev) =>
           prev.map((uf) =>
@@ -100,35 +125,27 @@ export default function DJTrackUploader({ onUploadComplete }: DJTrackUploaderPro
       }
     }
 
-    // Notify parent component
-    if (onUploadComplete) {
-      // Placeholder track IDs - will be real IDs from backend
-      const trackIds = validFiles.map((_, i) => i + 1);
-      onUploadComplete(trackIds);
+    // Notify parent component with real track IDs
+    if (onUploadComplete && uploadedTrackIds.length > 0) {
+      onUploadComplete(uploadedTrackIds);
     }
   };
 
-  // Simulate upload progress (will be replaced with real upload in Phase 4)
-  const simulateUpload = (index: number, total: number): Promise<void> => {
-    return new Promise((resolve) => {
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        setUploadingFiles((prev) =>
-          prev.map((uf, i) =>
-            i === prev.length - total + index
-              ? { ...uf, progress: Math.min(progress, 100) }
-              : uf
-          )
-        );
-
-        if (progress >= 100) {
-          clearInterval(interval);
-          resolve();
-        }
-      }, 200);
+  // Read file as base64 for upload
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   };
+  
+  // tRPC mutation for uploading tracks
+  const uploadTrackMutation = trpc.djStudio.uploadTrack.useMutation();
 
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
