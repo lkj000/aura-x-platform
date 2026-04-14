@@ -2,6 +2,7 @@ import { useState } from "react";
 import DJTrackUploader from "@/components/dj/DJTrackUploader";
 import DJTrackLibrary from "@/components/dj/DJTrackLibrary";
 import DJSetGenerator from "@/components/dj/DJSetGenerator";
+import DJSetPlayer from "@/components/dj/DJSetPlayer";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -18,7 +19,8 @@ import {
   Download,
   Sparkles,
   Library,
-  Settings2
+  Settings2,
+  Loader2
 } from "lucide-react";
 
 /**
@@ -43,6 +45,10 @@ export default function DJStudio() {
   const analyzeMutation = trpc.djStudio.analyzeTrack.useMutation();
   const stemsMutation = trpc.djStudio.separateStems.useMutation();
   const deleteMutation = trpc.djStudio.deleteTrack.useMutation();
+  const generateSetMutation = trpc.djStudio.generateSet.useMutation();
+  
+  // Fetch generated sets for Player tab
+  const { data: generatedSets = [] } = trpc.djStudio.getPerformancePlans.useQuery();
 
   const handleUploadComplete = async (trackIds: number[]) => {
     console.log("Uploaded track IDs:", trackIds);
@@ -180,9 +186,21 @@ export default function DJStudio() {
             ) : (
               <DJSetGenerator
                 selectedTrackIds={selectedTrackIds}
-                onGenerate={(config) => {
-                  console.log("Generate set with config:", config);
-                  toast.success("Set generation started! (placeholder)");
+                onGenerate={async (config) => {
+                  try {
+                    await generateSetMutation.mutateAsync({
+                      trackIds: selectedTrackIds.length > 0 ? selectedTrackIds : tracks.map(t => t.id),
+                      durationTargetSec: config.durationTargetSec,
+                      preset: config.preset,
+                      riskLevel: config.riskLevel,
+                      allowVocalOverlay: config.allowVocalOverlay
+                    });
+                    toast.success("DJ set generation started! Check back in a few minutes.");
+                    setActiveTab("player");
+                  } catch (error) {
+                    toast.error("Failed to generate set");
+                    console.error(error);
+                  }
                 }}
               />
             )}
@@ -190,19 +208,99 @@ export default function DJStudio() {
 
           {/* Player Tab */}
           <TabsContent value="player" className="flex-1 mt-6">
-            <Card className="p-12">
-              <div className="flex flex-col items-center justify-center gap-4 text-center">
-                <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center">
-                  <Play className="h-10 w-10 text-muted-foreground" />
+            {generatedSets.length === 0 ? (
+              <Card className="p-12">
+                <div className="flex flex-col items-center justify-center gap-4 text-center">
+                  <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center">
+                    <Play className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">DJ Set Player</h3>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                      Generate your first DJ set to preview it here with waveform visualization and cue points
+                    </p>
+                  </div>
                 </div>
+              </Card>
+            ) : (
+              <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-semibold">DJ Set Player</h3>
-                  <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                    Generate your first DJ set to preview it here with waveform visualization and cue points
-                  </p>
+                  <h2 className="text-2xl font-bold mb-1">Generated Sets</h2>
+                  <p className="text-muted-foreground">{generatedSets.length} set{generatedSets.length !== 1 ? 's' : ''} available</p>
                 </div>
+                {generatedSets.map((set: any) => {
+                  // Find the best render (highest quality score)
+                  const bestRender = set.renders?.length > 0
+                    ? set.renders.reduce((best: any, current: any) => 
+                        (current.qualityScore ?? 0) > (best.qualityScore ?? 0) ? current : best
+                      )
+                    : null;
+
+                  return (
+                    <Card key={set.id} className="p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold">{set.name || `${set.preset} Set`}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {set.preset} • {Math.round(set.durationTargetSec / 60)} minutes • {set.renders?.length || 0} variation{set.renders?.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        {bestRender && (
+                          <Button size="sm" variant="outline" className="gap-2">
+                            <Download className="h-4 w-4" />
+                            Download
+                          </Button>
+                        )}
+                      </div>
+
+                      {bestRender ? (
+                        <div className="space-y-4">
+                          {/* Render quality info */}
+                          <div className="flex items-center gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Quality Score:</span>
+                              <span className="ml-2 font-semibold text-primary">
+                                {(bestRender.qualityScore * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Transitions:</span>
+                              <span className="ml-2 font-semibold">
+                                {bestRender.cueSheetData?.length || 0}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Render variations */}
+                          {set.renders && set.renders.length > 1 && (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium">Available Variations:</p>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                {set.renders.map((render: any, idx: number) => (
+                                  <Button
+                                    key={render.id}
+                                    variant={render.id === bestRender.id ? "default" : "outline"}
+                                    size="sm"
+                                    className="text-xs"
+                                  >
+                                    v{idx + 1} ({(render.qualityScore * 100).toFixed(0)}%)
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Set generation in progress... Check back soon for playback.
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
               </div>
-            </Card>
+            )}
           </TabsContent>
 
           {/* Settings Tab */}

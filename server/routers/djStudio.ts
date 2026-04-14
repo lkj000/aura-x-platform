@@ -268,4 +268,25 @@ export const djStudioRouter = router({
         message: "Set generation job queued (placeholder - Modal integration pending)",
       };
     }),
+
+  /**
+   * Get all performance plans (generated DJ sets) for the current user
+   */
+  getPerformancePlans: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user.id;
+    const plans = await djDb.getUserPerformancePlans(userId);
+
+    // Fetch renders for each plan
+    const plansWithRenders = await Promise.all(
+      plans.map(async (plan) => {
+        const renders = await djDb.getPlanRenders(plan.id);
+        return {
+          ...plan,
+          renders: renders || [],
+        };
+      })
+    );
+
+    return plansWithRenders;
+  }),
 });
