@@ -1,16 +1,24 @@
 /**
- * Temporal Workflows for DJ Studio
- * 
- * Long-running workflows for:
- * - Track analysis (trigger Modal, wait for webhook)
- * - Stem separation (trigger Modal, wait for webhook)
- * - DJ set generation (analyze → plan → render)
+ * temporal/workflows.ts — Temporal Workflow definitions for AURA-X
+ *
+ * Workflows are durable, restartable execution plans. They coordinate
+ * activities (Modal HTTP triggers + DB polls) and survive process crashes,
+ * deployments, and network blips via Temporal's event sourcing.
+ *
+ * Task queues:
+ *   aura-x-music-generation   — AI Studio: MusicGenerationWorkflow, StemSeparationWorkflow
+ *   aura-x-dj-studio          — DJ Studio: analyzeTrackWorkflow, separateStemsWorkflow, generateDJSetWorkflow
+ *
+ * Polling strategy: all workflows use a sleep + DB poll loop. Temporal's
+ * `sleep` is durable (survives worker restarts); `setTimeout` is not.
  */
 
-import { proxyActivities, sleep } from '@temporalio/workflow';
-import type * as activities from './activities';
+import { proxyActivities, sleep } from "@temporalio/workflow";
+import type * as activities from "./activities";
 
-// Proxy activities with timeouts
+// ── Activity proxies ───────────────────────────────────────────────────────────
+
+// DJ Studio activities — longer timeouts for GPU stem separation
 const {
   triggerModalAnalysis,
   triggerModalStemSeparation,
@@ -19,87 +27,148 @@ const {
   generateSetPlan,
   renderDJSet,
 } = proxyActivities<typeof activities>({
-  startToCloseTimeout: '10 minutes',
+  startToCloseTimeout: "10 minutes",
   retry: {
-    initialInterval: '5s',
+    initialInterval: "5s",
+    backoffCoefficient: 2,
+    maximumInterval: "60s",
     maximumAttempts: 3,
   },
 });
 
-/**
- * Workflow: Analyze Track
- * 
- * 1. Trigger Modal analysis worker
- * 2. Poll database for completion (webhook updates DB)
- * 3. Return analysis results
- */
-export async function analyzeTrackWorkflow(trackId: number, fileKey: string): Promise<void> {
-  console.log(`[Workflow] Starting analysis for track ${trackId}`);
-  
-  // Trigger Modal worker
-  await triggerModalAnalysis(trackId, fileKey);
-  
-  // Poll for completion (webhook will update DB)
-  let isComplete = false;
-  let attempts = 0;
-  const maxAttempts = 60; // 5 minutes max (5s intervals)
-  
-  while (!isComplete && attempts < maxAttempts) {
-    await sleep('5s');
-    isComplete = await checkAnalysisStatus(trackId);
-    attempts++;
-  }
-  
-  if (!isComplete) {
-    throw new Error(`Analysis timeout for track ${trackId}`);
-  }
-  
-  console.log(`[Workflow] Analysis complete for track ${trackId}`);
+// Music generation activities — Modal trigger is fast; generation can take 5+ min
+const {
+  triggerMusicGeneration,
+  checkMusicGenerationStatus,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "15 minutes",
+  retry: {
+    initialInterval: "10s",
+    backoffCoefficient: 2,
+    maximumInterval: "120s",
+    maximumAttempts: 3,
+  },
+});
+
+// ── AI Studio Workflows ────────────────────────────────────────────────────────
+
+export interface MusicGenerationWorkflowParams {
+  generation_id: number;
+  user_id: number;
+  prompt: string;
+  lyrics?: string;
+  duration?: number;
+  temperature?: number;
+  seed?: number;
+  modal_base_url?: string; // unused in activity (activities read env), kept for traceability
+  modal_api_key?: string;
 }
 
 /**
- * Workflow: Separate Stems
- * 
- * 1. Trigger Modal stem separation worker
- * 2. Poll database for completion
- * 3. Return stem URLs
+ * MusicGenerationWorkflow
+ *
+ * 1. Trigger Modal generate_music (fire-and-forget HTTP POST)
+ * 2. Poll DB every 10 s for up to 10 min until audioUrl is set by webhook
+ * 3. Throw on timeout so Temporal marks the workflow as failed
+ */
+export async function MusicGenerationWorkflow(
+  params: MusicGenerationWorkflowParams
+): Promise<void> {
+  const { generation_id, prompt, duration, temperature, seed } = params;
+
+  await triggerMusicGeneration({ generationId: generation_id, prompt, duration, temperature, seed });
+
+  const maxAttempts = 60; // 10 s × 60 = 10 min
+  for (let i = 0; i < maxAttempts; i++) {
+    await sleep("10s");
+    const done = await checkMusicGenerationStatus(generation_id);
+    if (done) return;
+  }
+
+  throw new Error(`MusicGenerationWorkflow timed out for generation ${generation_id}`);
+}
+
+/**
+ * StemSeparationWorkflow (AI Studio stems for a completed generation)
+ *
+ * Uses the same separate_stems Modal endpoint but keyed off generationId
+ * rather than a DJ track.  The file_key is the S3 key of the generated audio.
+ */
+export async function StemSeparationWorkflow(params: {
+  generation_id: number;
+  user_id: number;
+  audio_url: string;
+  modal_base_url?: string;
+  modal_api_key?: string;
+}): Promise<void> {
+  const { generation_id, user_id, audio_url } = params;
+
+  // Reuse DJ triggerModalStemSeparation; audio_url is treated as the file_key
+  await triggerModalStemSeparation(generation_id, audio_url, user_id);
+
+  const maxAttempts = 180; // 5 s × 180 = 15 min
+  for (let i = 0; i < maxAttempts; i++) {
+    await sleep("5s");
+    const done = await checkStemsStatus(generation_id);
+    if (done) return;
+  }
+
+  throw new Error(`StemSeparationWorkflow timed out for generation ${generation_id}`);
+}
+
+// ── DJ Studio Workflows ────────────────────────────────────────────────────────
+
+/**
+ * analyzeTrackWorkflow
+ *
+ * 1. Trigger Modal analyze_track (fire-and-forget)
+ * 2. Poll DB every 5 s until features land via webhook (max 5 min)
+ */
+export async function analyzeTrackWorkflow(
+  trackId: number,
+  fileKey: string
+): Promise<void> {
+  await triggerModalAnalysis(trackId, fileKey);
+
+  const maxAttempts = 60; // 5 s × 60 = 5 min
+  for (let i = 0; i < maxAttempts; i++) {
+    await sleep("5s");
+    if (await checkAnalysisStatus(trackId)) return;
+  }
+
+  throw new Error(`analyzeTrackWorkflow timed out for track ${trackId}`);
+}
+
+/**
+ * separateStemsWorkflow
+ *
+ * 1. Trigger Modal separate_stems (GPU A10G, can take up to 10 min)
+ * 2. Poll DB every 5 s until stems land via webhook (max 15 min)
  */
 export async function separateStemsWorkflow(
   trackId: number,
   fileKey: string,
   userId: number
 ): Promise<void> {
-  console.log(`[Workflow] Starting stem separation for track ${trackId}`);
-  
-  // Trigger Modal worker
   await triggerModalStemSeparation(trackId, fileKey, userId);
-  
-  // Poll for completion (webhook will update DB)
-  let isComplete = false;
-  let attempts = 0;
-  const maxAttempts = 180; // 15 minutes max (5s intervals)
-  
-  while (!isComplete && attempts < maxAttempts) {
-    await sleep('5s');
-    isComplete = await checkStemsStatus(trackId);
-    attempts++;
+
+  const maxAttempts = 180; // 5 s × 180 = 15 min
+  for (let i = 0; i < maxAttempts; i++) {
+    await sleep("5s");
+    if (await checkStemsStatus(trackId)) return;
   }
-  
-  if (!isComplete) {
-    throw new Error(`Stem separation timeout for track ${trackId}`);
-  }
-  
-  console.log(`[Workflow] Stem separation complete for track ${trackId}`);
+
+  throw new Error(`separateStemsWorkflow timed out for track ${trackId}`);
 }
 
 /**
- * Workflow: Generate DJ Set
- * 
- * Multi-step workflow:
- * 1. Ensure all tracks are analyzed
- * 2. Generate set plan (Camelot wheel, energy arc, transitions)
- * 3. Render final mix (crossfade, tempo adjustment, EQ)
- * 4. Return rendered mix URL
+ * generateDJSetWorkflow
+ *
+ * Multi-step DJ set generation:
+ * 1. Build an energy-arc ordered performance plan from analysed tracks
+ * 2. Trigger Modal render_dj_set and await the rendered mix URL
+ *
+ * @returns { planId, mixUrl }
  */
 export async function generateDJSetWorkflow(
   userId: number,
@@ -111,21 +180,7 @@ export async function generateDJSetWorkflow(
     allowVocalOverlay: boolean;
   }
 ): Promise<{ planId: number; mixUrl: string }> {
-  console.log(`[Workflow] Starting DJ set generation for user ${userId}`);
-  
-  // Step 1: Ensure all tracks are analyzed
-  // (In production, trigger analysis for unanalyzed tracks)
-  console.log(`[Workflow] Verifying ${trackIds.length} tracks are analyzed`);
-  
-  // Step 2: Generate set plan
-  console.log(`[Workflow] Generating set plan...`);
   const planId = await generateSetPlan(userId, trackIds, config);
-  
-  // Step 3: Render DJ set
-  console.log(`[Workflow] Rendering DJ set...`);
   const mixUrl = await renderDJSet(planId);
-  
-  console.log(`[Workflow] DJ set generation complete: ${mixUrl}`);
-  
   return { planId, mixUrl };
 }
