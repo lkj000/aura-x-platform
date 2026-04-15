@@ -11,10 +11,12 @@ export const users = mysqlTable("users", {
    * Use this for relations between tables.
    */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
+  /** Unique user identifier. For email/password users: "local_<nanoid>". For OAuth: the provider's sub/openId. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  /** bcrypt/scrypt password hash for email/password auth. Null for OAuth-only users. */
+  passwordHash: text("passwordHash"),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   tier: mysqlEnum("tier", ["free", "pro", "enterprise"]).default("free").notNull(),
@@ -760,34 +762,83 @@ export type DJTrack = typeof djTracks.$inferSelect;
 export type InsertDJTrack = typeof djTracks.$inferInsert;
 
 /**
- * DJ Track Features table - Analysis results for each track
+ * DJ Track Features table — Analysis results for each track.
+ *
+ * Extends standard DJ analysis (BPM, key, energy) with Amapiano-specific
+ * dimensions: swing percentage, log drum detection, piano voicing complexity,
+ * cultural authenticity score, language detection, and regional style.
+ *
+ * Target BPM for Amapiano: 115–130. Outside this range warrants a warning.
  */
 export const djTrackFeatures = mysqlTable("dj_track_features", {
   id: int("id").autoincrement().primaryKey(),
   trackId: int("trackId").notNull().unique(), // Foreign key to dj_tracks
-  // BPM & Beatgrid
-  bpm: decimal("bpm", { precision: 6, scale: 2 }).$type<number>(), // e.g., 112.50
-  bpmConfidence: decimal("bpmConfidence", { precision: 3, scale: 2 }).$type<number>(), // 0.00 to 1.00
-  beatgrid: json("beatgrid"), // Array of beat timestamps
-  downbeats: json("downbeats"), // Array of downbeat timestamps
-  // Key & Harmony
-  key: varchar("key", { length: 10 }), // e.g., "Fm", "C#"
-  keyConfidence: decimal("keyConfidence", { precision: 3, scale: 2 }).$type<number>(), // 0.00 to 1.00
-  camelotKey: varchar("camelotKey", { length: 5 }), // e.g., "1A", "8B"
-  compatibleKeys: json("compatibleKeys"), // Array of compatible Camelot keys
-  // Energy & Dynamics
-  energyCurve: json("energyCurve"), // Array of energy values (0-1) over time
-  energyAvg: decimal("energyAvg", { precision: 3, scale: 2 }).$type<number>(), // Average energy 0.00 to 1.00
-  energyPeak: decimal("energyPeak", { precision: 3, scale: 2 }).$type<number>(), // Peak energy 0.00 to 1.00
-  // Loudness
-  lufs: decimal("lufs", { precision: 5, scale: 2 }).$type<number>(), // Integrated loudness (LUFS)
-  truePeak: decimal("truePeak", { precision: 5, scale: 2 }).$type<number>(), // True peak (dBTP)
-  // Segments
-  segments: json("segments"), // Array of {type, start, end} for intro/verse/drop/break/outro
-  // Mixability Score
-  mixabilityScore: decimal("mixabilityScore", { precision: 3, scale: 2 }).$type<number>(), // 0.00 to 1.00
-  // Analysis Metadata
-  analyzerVersion: varchar("analyzerVersion", { length: 50 }).default("1.0.0"),
+
+  // ── BPM & Beatgrid ─────────────────────────────────────────────────────────
+  bpm: decimal("bpm", { precision: 6, scale: 2 }).$type<number>(),           // e.g., 122.50
+  bpmConfidence: decimal("bpmConfidence", { precision: 3, scale: 2 }).$type<number>(), // 0.00–1.00
+  beatgrid: json("beatgrid"),   // number[] — beat timestamps in seconds
+  downbeats: json("downbeats"), // number[] — downbeat timestamps
+
+  // ── Key & Harmony ──────────────────────────────────────────────────────────
+  key: varchar("key", { length: 10 }),          // e.g., "Am", "Dm"
+  keyConfidence: decimal("keyConfidence", { precision: 3, scale: 2 }).$type<number>(),
+  scale: varchar("scale", { length: 20 }),       // "minor" | "major" | "dorian" | "mixolydian"
+  camelotKey: varchar("camelotKey", { length: 5 }), // e.g., "8A", "5B"
+  compatibleKeys: json("compatibleKeys"),        // string[] — Camelot-adjacent keys for mixing
+
+  // ── Energy & Dynamics ──────────────────────────────────────────────────────
+  energyCurve: json("energyCurve"),  // number[] — energy values 0–1 at 1-sec intervals
+  energyAvg: decimal("energyAvg", { precision: 3, scale: 2 }).$type<number>(),
+  energyPeak: decimal("energyPeak", { precision: 3, scale: 2 }).$type<number>(),
+  energyArcType: varchar("energyArcType", { length: 30 }), // "build" | "plateau" | "drop" | "complex"
+
+  // ── Loudness ───────────────────────────────────────────────────────────────
+  lufs: decimal("lufs", { precision: 5, scale: 2 }).$type<number>(),          // Integrated loudness (LUFS)
+  truePeak: decimal("truePeak", { precision: 5, scale: 2 }).$type<number>(),   // True peak (dBTP)
+  dynamicRange: decimal("dynamicRange", { precision: 4, scale: 1 }).$type<number>(), // LU range
+
+  // ── Segments ───────────────────────────────────────────────────────────────
+  // Array of {type: "intro"|"verse"|"chorus"|"drop"|"break"|"outro", start: sec, end: sec}
+  segments: json("segments"),
+
+  // ── Mixability ─────────────────────────────────────────────────────────────
+  mixabilityScore: decimal("mixabilityScore", { precision: 3, scale: 2 }).$type<number>(), // 0.00–1.00
+
+  // ── Amapiano-Specific Features ─────────────────────────────────────────────
+  // Swing: how much groove deviates from rigid 16th-note quantisation.
+  // Authentic amapiano range: 53–62% (see regional table in CLAUDE.md).
+  swingPercent: decimal("swingPercent", { precision: 4, scale: 1 }).$type<number>(), // e.g., 57.3
+
+  // Log drum — the single most important element in Amapiano.
+  logDrumDetected: boolean("logDrumDetected").default(false).notNull(),
+  logDrumFreqHz: decimal("logDrumFreqHz", { precision: 5, scale: 1 }).$type<number>(), // Fundamental freq (typ. 50–80 Hz)
+  logDrumProminence: decimal("logDrumProminence", { precision: 3, scale: 2 }).$type<number>(), // 0–1 relative energy
+
+  // Piano voicing complexity (are these jazz chords or basic triads?)
+  // 0 = no chords, 0.5 = basic triads, 1.0 = extended jazz voicings
+  pianoComplexity: decimal("pianoComplexity", { precision: 3, scale: 2 }).$type<number>(),
+
+  // Flute presence (characteristic of many Amapiano tracks)
+  fluteDetected: boolean("fluteDetected").default(false).notNull(),
+
+  // Cultural authenticity score (0–100) — see CLAUDE.md §1.7 for dimensions
+  culturalScore: decimal("culturalScore", { precision: 5, scale: 2 }).$type<number>(),
+  culturalScoreBreakdown: json("culturalScoreBreakdown"), // {logDrum, piano, swing, language, energyArc, harmonic, timbre, era}
+
+  // ── Language Detection ─────────────────────────────────────────────────────
+  // Primary detected SA language in lyrics (ISO 639-3 code, see shared/languages.ts)
+  detectedLanguage: varchar("detectedLanguage", { length: 10 }), // e.g., "zul", "tso"
+  languageConfidence: decimal("languageConfidence", { precision: 3, scale: 2 }).$type<number>(),
+  // All detected languages (code-switching is the norm)
+  detectedLanguages: json("detectedLanguages"), // string[] of SA language codes
+
+  // ── Regional Style ─────────────────────────────────────────────────────────
+  regionalStyle: varchar("regionalStyle", { length: 50 }), // "Gauteng" | "Durban" | "Cape Town" | "Limpopo" | "East Rand"
+  productionEra: varchar("productionEra", { length: 20 }), // "classic" (2017–2020) | "modern" (2021+)
+
+  // ── Analysis Metadata ──────────────────────────────────────────────────────
+  analyzerVersion: varchar("analyzerVersion", { length: 50 }).default("2.0.0"),
   analyzedAt: timestamp("analyzedAt").defaultNow().notNull(),
 });
 
@@ -795,21 +846,68 @@ export type DJTrackFeatures = typeof djTrackFeatures.$inferSelect;
 export type InsertDJTrackFeatures = typeof djTrackFeatures.$inferInsert;
 
 /**
- * DJ Stems table - Separated stems for each track
+ * DJ Stems table — 26-stem Amapiano ontology (SCHEMA v2)
+ *
+ * A generic 4-stem model is insufficient for Amapiano. The log drum, piano,
+ * flute, and bass synth are each culturally load-bearing and must be
+ * individually addressable. See shared/stems.ts for the full ontology.
+ *
+ * Individual URL+key columns are provided for the 6 priority stems that are
+ * most frequently accessed in mixing and cultural scoring. All 26 stems are
+ * also stored in the `stemMap` JSON column as:
+ *   { [stemId: StemId]: { url: string; key: string; sdrDb?: number } }
+ *
+ * SDR (Signal-to-Distortion Ratio) in dB measures separation quality.
+ * Target SDR: log_drum ≥ 8 dB, piano_chords ≥ 9 dB, lead_vocal ≥ 11 dB.
  */
 export const djStems = mysqlTable("dj_stems", {
   id: int("id").autoincrement().primaryKey(),
   trackId: int("trackId").notNull(), // Foreign key to dj_tracks
-  modelVersion: varchar("modelVersion", { length: 50 }).notNull(), // e.g., "htdemucs", "demucs_v4"
-  vocalsUrl: text("vocalsUrl"), // S3 URL to vocals stem
-  vocalsKey: varchar("vocalsKey", { length: 500 }), // S3 key
-  drumsUrl: text("drumsUrl"), // S3 URL to drums stem
-  drumsKey: varchar("drumsKey", { length: 500 }), // S3 key
-  bassUrl: text("bassUrl"), // S3 URL to bass stem
-  bassKey: varchar("bassKey", { length: 500 }), // S3 key
-  otherUrl: text("otherUrl"), // S3 URL to other/melodic stem
-  otherKey: varchar("otherKey", { length: 500 }), // S3 key
-  processingTimeSec: int("processingTimeSec"), // Time taken to separate stems
+
+  // Separation model metadata
+  modelVersion: varchar("modelVersion", { length: 50 }).notNull(), // "htdemucs_6s" | "htdemucs_ft" | "mdx_net_voc_ft"
+  separationPassCount: int("separationPassCount").default(1).notNull(), // 1 = single pass, 2 = two-pass (primary + classifier)
+
+  // ── Priority stems — individual URL + key + SDR quality metric ─────────────
+  // Log drum (THE defining Amapiano element — NOT the kick)
+  logDrumUrl: text("logDrumUrl"),
+  logDrumKey: varchar("logDrumKey", { length: 500 }),
+  logDrumSdrDb: decimal("logDrumSdrDb", { precision: 5, scale: 2 }).$type<number>(),
+
+  // Kick drum
+  kickUrl: text("kickUrl"),
+  kickKey: varchar("kickKey", { length: 500 }),
+  kickSdrDb: decimal("kickSdrDb", { precision: 5, scale: 2 }).$type<number>(),
+
+  // Piano chords (the "yanos" jazz voicings)
+  pianoChordUrl: text("pianoChordUrl"),
+  pianoChordKey: varchar("pianoChordKey", { length: 500 }),
+  pianoChordSdrDb: decimal("pianoChordSdrDb", { precision: 5, scale: 2 }).$type<number>(),
+
+  // Bass synth / 808
+  bassSynthUrl: text("bassSynthUrl"),
+  bassSynthKey: varchar("bassSynthKey", { length: 500 }),
+  bassSynthSdrDb: decimal("bassSynthSdrDb", { precision: 5, scale: 2 }).$type<number>(),
+
+  // Lead vocal
+  leadVocalUrl: text("leadVocalUrl"),
+  leadVocalKey: varchar("leadVocalKey", { length: 500 }),
+  leadVocalSdrDb: decimal("leadVocalSdrDb", { precision: 5, scale: 2 }).$type<number>(),
+
+  // Flute (highly characteristic of Amapiano — DBN Gogo, Daliwonga style)
+  fluteUrl: text("fluteUrl"),
+  fluteKey: varchar("fluteKey", { length: 500 }),
+  fluteSdrDb: decimal("fluteSdrDb", { precision: 5, scale: 2 }).$type<number>(),
+
+  // ── Full 26-stem map (all stems including above priority ones) ──────────────
+  // JSON: { [stemId: StemId]: { url: string; key: string; sdrDb?: number } }
+  stemMap: json("stemMap"),
+
+  // ── Aggregate quality metrics ───────────────────────────────────────────────
+  avgSdrDb: decimal("avgSdrDb", { precision: 5, scale: 2 }).$type<number>(),  // Mean SDR across all separated stems
+  stemsCompleted: int("stemsCompleted").default(0).notNull(), // How many of 26 were successfully separated
+  processingTimeSec: int("processingTimeSec"),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -900,3 +998,118 @@ export const djVibePresets = mysqlTable("dj_vibe_presets", {
 
 export type DJVibePreset = typeof djVibePresets.$inferSelect;
 export type InsertDJVibePreset = typeof djVibePresets.$inferInsert;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Training Data — Amapiano model fine-tuning pipeline
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Training Tracks table — The owner's 150+ original Amapiano tracks.
+ *
+ * These tracks feed the fine-tuning pipeline for:
+ * 1. Amapiano stem separation (htdemucs_ft)
+ * 2. Cultural authenticity scoring calibration
+ * 3. MusicGen Amapiano fine-tune dataset
+ * 4. Language detection model training
+ *
+ * S3 layout:
+ *   Raw:      training-data/amapiano/raw/{sha256}.{ext}
+ *   Features: training-data/amapiano/features/{id}.json
+ *   Stems:    training-data/amapiano/stems/{id}/{stemId}.wav
+ */
+export const trainingTracks = mysqlTable("training_tracks", {
+  id: int("id").autoincrement().primaryKey(),
+
+  // ── File provenance ─────────────────────────────────────────────────────────
+  name: varchar("name", { length: 255 }).notNull(),
+  artist: varchar("artist", { length: 255 }),
+  album: varchar("album", { length: 255 }),
+  year: int("year"),
+  originalFileName: varchar("originalFileName", { length: 500 }).notNull(),
+  fileType: varchar("fileType", { length: 10 }).notNull(), // "mp3" | "flac" | "wav"
+  fileSize: int("fileSize").notNull(), // bytes
+  sha256: varchar("sha256", { length: 64 }).notNull().unique(), // deduplication
+  durationSec: decimal("durationSec", { precision: 10, scale: 3 }).$type<number>(),
+
+  // ── S3 locations ────────────────────────────────────────────────────────────
+  rawFileKey: varchar("rawFileKey", { length: 500 }).notNull(),   // training-data/amapiano/raw/...
+  rawFileUrl: text("rawFileUrl").notNull(),
+  featuresKey: varchar("featuresKey", { length: 500 }),            // training-data/amapiano/features/...
+  stemsPrefix: varchar("stemsPrefix", { length: 500 }),            // training-data/amapiano/stems/{id}/
+
+  // ── Processing pipeline status ──────────────────────────────────────────────
+  status: mysqlEnum("status", [
+    "pending",           // Uploaded, awaiting processing
+    "processing",        // Currently being processed
+    "features_extracted", // BPM, key, energy done
+    "stems_separated",   // 26-stem separation done
+    "labeled",           // Human-verified stems + cultural score
+    "complete",          // All pipeline stages done, ready for training
+    "failed",            // Processing error
+    "excluded",          // Manually excluded (bad quality, wrong genre)
+  ]).default("pending").notNull(),
+
+  // ── Extracted features ──────────────────────────────────────────────────────
+  bpm: decimal("bpm", { precision: 6, scale: 2 }).$type<number>(),
+  key: varchar("key", { length: 10 }),
+  scale: varchar("scale", { length: 20 }),
+  swingPercent: decimal("swingPercent", { precision: 4, scale: 1 }).$type<number>(),
+  lufs: decimal("lufs", { precision: 5, scale: 2 }).$type<number>(),
+  culturalScore: decimal("culturalScore", { precision: 5, scale: 2 }).$type<number>(), // 0–100
+  detectedLanguage: varchar("detectedLanguage", { length: 10 }),
+  detectedLanguages: json("detectedLanguages"), // string[] of SA language codes
+  regionalStyle: varchar("regionalStyle", { length: 50 }),
+
+  // ── Quality flags ───────────────────────────────────────────────────────────
+  isVerifiedAmapiano: boolean("isVerifiedAmapiano").default(false).notNull(), // Human-verified as authentic Amapiano
+  hasCleanStems: boolean("hasCleanStems").default(false).notNull(),           // Stems have SDR ≥ 8 dB
+  isEligibleForTraining: boolean("isEligibleForTraining").default(false).notNull(), // All checks passed
+
+  // ── Job tracking ────────────────────────────────────────────────────────────
+  featureJobId: varchar("featureJobId", { length: 255 }),  // Modal job ID for feature extraction
+  stemJobId: varchar("stemJobId", { length: 255 }),        // Modal job ID for stem separation
+  errorMessage: text("errorMessage"),
+
+  // ── Timestamps ──────────────────────────────────────────────────────────────
+  uploadedAt: timestamp("uploadedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TrainingTrack = typeof trainingTracks.$inferSelect;
+export type InsertTrainingTrack = typeof trainingTracks.$inferInsert;
+
+/**
+ * Training Labels table — Human-verified stem quality ratings.
+ *
+ * After automated separation, a human reviewer rates each stem's quality.
+ * Tracks with avgStemQuality < 0.7 are excluded from training data.
+ */
+export const trainingLabels = mysqlTable("training_labels", {
+  id: int("id").autoincrement().primaryKey(),
+  trainingTrackId: int("trainingTrackId").notNull(), // FK to training_tracks
+  reviewerId: int("reviewerId").notNull(),           // FK to users (admin reviewer)
+
+  // Per-stem quality: 0 (unusable) to 1 (perfect isolation)
+  // JSON: { [stemId: StemId]: number }
+  stemQualityRatings: json("stemQualityRatings").notNull(),
+
+  // Cultural authenticity dimensions (see CLAUDE.md §1.7)
+  logDrumScore: decimal("logDrumScore", { precision: 3, scale: 1 }).$type<number>(), // 0–20
+  pianoScore: decimal("pianoScore", { precision: 3, scale: 1 }).$type<number>(),     // 0–20
+  swingScore: decimal("swingScore", { precision: 3, scale: 1 }).$type<number>(),     // 0–15
+  languageScore: decimal("languageScore", { precision: 3, scale: 1 }).$type<number>(), // 0–15
+  energyArcScore: decimal("energyArcScore", { precision: 3, scale: 1 }).$type<number>(), // 0–10
+  harmonicScore: decimal("harmonicScore", { precision: 3, scale: 1 }).$type<number>(), // 0–10
+  timbreScore: decimal("timbreScore", { precision: 3, scale: 1 }).$type<number>(),   // 0–5
+  eraScore: decimal("eraScore", { precision: 3, scale: 1 }).$type<number>(),         // 0–5
+  // Total: 0–100
+  totalCulturalScore: decimal("totalCulturalScore", { precision: 5, scale: 2 }).$type<number>(),
+
+  avgStemQuality: decimal("avgStemQuality", { precision: 3, scale: 2 }).$type<number>(),
+  notes: text("notes"),
+  reviewedAt: timestamp("reviewedAt").defaultNow().notNull(),
+});
+
+export type TrainingLabel = typeof trainingLabels.$inferSelect;
+export type InsertTrainingLabel = typeof trainingLabels.$inferInsert;

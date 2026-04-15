@@ -244,28 +244,28 @@ class AudioEngineService {
 
     this.tracks.set(track.id, track);
 
-    // Create track channel
+    // Create track channel (not yet connected — wired after effects below)
     const channel = new Tone.Channel({
       volume: track.volume,
       pan: track.pan,
       mute: track.muted,
       solo: track.solo,
-    }).connect(this.limiter!);
+    });
 
     this.trackChannels.set(track.id, channel);
 
-    // Create and connect effect chain
+    // Create and connect effect chain: channel → effect1 → effect2 → … → limiter
     const effects = this.createEffectChain(track.id, track.effects);
     this.trackEffects.set(track.id, effects);
 
-    // Connect effects in series
-    let input: Tone.ToneAudioNode = channel;
+    let lastNode: Tone.ToneAudioNode = channel;
     effects.forEach(effect => {
-      effect.connect(input);
-      input = effect;
+      lastNode.connect(effect);
+      lastNode = effect;
     });
+    lastNode.connect(this.limiter!);
 
-    // Load audio clips for audio tracks
+    // Players / samplers connect to the channel (head of the chain)
     if (track.type === 'audio') {
       const players: Tone.Player[] = [];
 
@@ -274,18 +274,18 @@ class AudioEngineService {
           clip.buffer = await this.loadAudioFile(clip.fileUrl);
         }
 
-        const player = new Tone.Player(clip.buffer).connect(input);
+        const player = new Tone.Player(clip.buffer).connect(channel);
         players.push(player);
       }
 
       this.audioPlayers.set(track.id, players);
     }
 
-    // Connect MIDI instrument
+    // Connect MIDI instrument to channel head
     if (track.type === 'midi' && track.instrument) {
       const sampler = this.samplers.get(track.instrument);
       if (sampler) {
-        sampler.connect(input);
+        sampler.connect(channel);
       }
     }
 
@@ -746,11 +746,16 @@ class AudioEngineService {
       // Load audio if not already loaded
       const buffer = await this.loadAudioFile(audioUrl);
 
+      // Route through track channel (which has the effects chain → limiter → destination).
+      // Fall back to limiter if the track channel hasn't been registered yet.
+      const destination: Tone.ToneAudioNode =
+        this.trackChannels.get(trackId) ?? this.limiter ?? Tone.getDestination();
+
       // Create player for this clip
       const player = new Tone.Player({
         url: buffer,
         volume: Tone.gainToDb(volume),
-      }).toDestination();
+      }).connect(destination);
 
       // Store player reference
       if (!this.audioPlayers.has(trackId)) {

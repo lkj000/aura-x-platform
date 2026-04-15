@@ -25,12 +25,14 @@ import SamplePackBrowser from './pages/SamplePackBrowser';
 import ChordLibrary from './pages/ChordLibrary';
 import Comparison from './pages/Comparison';
 import DJStudio from './pages/DJStudio';
+import Login from './pages/Login';
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={LandingPage} />
+      <Route path="/login" component={Login} />
       <Route path="/studio" component={Home} />
       <Route path="/projects" component={Projects} />
       <Route path="/instruments" component={Instruments} />

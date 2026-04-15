@@ -82,6 +82,14 @@ export async function deleteDJTrack(trackId: number): Promise<void> {
 }
 
 /**
+ * Update the duration of a track (set after analysis completes — uploaded as 0).
+ */
+export async function updateDJTrackDuration(trackId: number, durationSec: number): Promise<void> {
+  const db = await getDatabase();
+  await db.update(djTracks).set({ durationSec }).where(eq(djTracks.id, trackId));
+}
+
+/**
  * Check if a track with the same SHA256 hash already exists for this user
  */
 export async function findDJTrackByHash(userId: number, sha256: string): Promise<DJTrack | undefined> {
@@ -190,6 +198,38 @@ export async function createDJRender(render: InsertDJRender): Promise<DJRender> 
   const [newRender] = await db.insert(djRenders).values(render).$returningId();
   const [created] = await db.select().from(djRenders).where(eq(djRenders.id, newRender.id));
   return created;
+}
+
+/**
+ * Mark a render as complete from a Modal webhook callback.
+ * Finds the pending render for this plan and updates it.
+ */
+export async function updateRenderComplete(data: {
+  planId: number;
+  mixUrl: string;
+  mixKey: string;
+  cueSheetUrl?: string;
+  cueSheetKey?: string;
+  renderTimeSec?: number;
+}): Promise<void> {
+  const db = await getDatabase();
+  // Find the most recent pending/processing render for this plan
+  const [render] = await db.select().from(djRenders)
+    .where(and(eq(djRenders.planId, data.planId)))
+    .orderBy(desc(djRenders.createdAt)).limit(1);
+  if (!render) {
+    console.warn(`[DJStudioDb] No render found for plan ${data.planId}`);
+    return;
+  }
+  await db.update(djRenders).set({
+    status: "completed",
+    mixUrl: data.mixUrl,
+    mixKey: data.mixKey,
+    cueSheetUrl: data.cueSheetUrl,
+    cueSheetKey: data.cueSheetKey,
+    renderTimeSec: data.renderTimeSec,
+    completedAt: new Date(),
+  }).where(eq(djRenders.id, render.id));
 }
 
 /**

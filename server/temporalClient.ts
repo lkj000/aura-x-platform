@@ -12,6 +12,7 @@ import { Connection, Client, WorkflowHandle } from '@temporalio/client';
 // Temporal connection configuration
 const TEMPORAL_SERVER_URL = process.env.TEMPORAL_SERVER_URL || 'localhost:7233';
 const TEMPORAL_TASK_QUEUE = 'aura-x-music-generation';
+const TEMPORAL_DJ_TASK_QUEUE = 'aura-x-dj-studio';
 
 // Singleton client instance
 let temporalClient: Client | null = null;
@@ -173,6 +174,59 @@ export async function queryWorkflowStatus(workflowId: string): Promise<{
     console.error(`[Temporal] Failed to query workflow ${workflowId}:`, error);
     throw error;
   }
+}
+
+/**
+ * Start the analyzeTrackWorkflow for a DJ track
+ */
+export async function executeAnalyzeTrackWorkflow(trackId: number, fileKey: string): Promise<WorkflowHandle> {
+  const client = await getTemporalClient();
+  const workflowId = `dj-analyze-${trackId}-${Date.now()}`;
+  const handle = await client.workflow.start('analyzeTrackWorkflow', {
+    taskQueue: TEMPORAL_DJ_TASK_QUEUE,
+    workflowId,
+    args: [trackId, fileKey],
+  });
+  console.log(`[Temporal] Started analyzeTrackWorkflow: ${workflowId}`);
+  return handle;
+}
+
+/**
+ * Start the separateStemsWorkflow for a DJ track
+ */
+export async function executeSeparateStemsWorkflow(
+  trackId: number,
+  fileKey: string,
+  userId: number
+): Promise<WorkflowHandle> {
+  const client = await getTemporalClient();
+  const workflowId = `dj-stems-${trackId}-${Date.now()}`;
+  const handle = await client.workflow.start('separateStemsWorkflow', {
+    taskQueue: TEMPORAL_DJ_TASK_QUEUE,
+    workflowId,
+    args: [trackId, fileKey, userId],
+  });
+  console.log(`[Temporal] Started separateStemsWorkflow: ${workflowId}`);
+  return handle;
+}
+
+/**
+ * Start the generateDJSetWorkflow
+ */
+export async function executeGenerateDJSetWorkflow(
+  userId: number,
+  trackIds: number[],
+  config: { durationMinutes: number; vibePreset: string; riskLevel: number; allowVocalOverlay: boolean }
+): Promise<WorkflowHandle> {
+  const client = await getTemporalClient();
+  const workflowId = `dj-set-${userId}-${Date.now()}`;
+  const handle = await client.workflow.start('generateDJSetWorkflow', {
+    taskQueue: TEMPORAL_DJ_TASK_QUEUE,
+    workflowId,
+    args: [userId, trackIds, config],
+  });
+  console.log(`[Temporal] Started generateDJSetWorkflow: ${workflowId}`);
+  return handle;
 }
 
 /**

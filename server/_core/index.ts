@@ -3,7 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
+import { registerAuthRoutes } from "./auth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -52,8 +52,13 @@ async function startServer() {
   const { handleModalWebhook } = await import('../modal-webhook');
   app.post('/api/modal/webhook', handleModalWebhook);
   
-  // OAuth callback under /api/oauth/callback
-  registerOAuthRoutes(app);
+  // Health check — used by Railway, load balancers, and uptime monitors
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Email/password auth routes: POST /api/auth/register, POST /api/auth/login
+  registerAuthRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

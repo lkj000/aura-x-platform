@@ -1,6 +1,6 @@
 /**
  * DJ Studio tRPC Router
- * 
+ *
  * Provides API endpoints for Level-5 Autonomous DJ Set Generator:
  * - Track upload and management
  * - Track analysis (BPM, key, energy curve, segments)
@@ -12,9 +12,35 @@
 import { router, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { storagePut } from "../storage";
+import { storagePut, storageDelete } from "../storage";
 import * as djDb from "../djStudioDb";
+import {
+  executeAnalyzeTrackWorkflow,
+  executeSeparateStemsWorkflow,
+  executeGenerateDJSetWorkflow,
+  queryWorkflowStatus,
+} from "../temporalClient";
 import crypto from "crypto";
+
+// ── In-process job status cache ───────────────────────────────────────────────
+// Maps trackId → Temporal workflowId for in-flight analysis / stem jobs.
+// Entries are removed once the workflow reaches a terminal state or the
+// database record confirms completion. The cache is intentionally
+// process-scoped: after a server restart in-flight jobs continue to run
+// in Temporal; the DB result (features row / stems row) is the source of
+// truth for completion — the boolean flags will correctly flip to false
+// until the webhooks write results back.
+const analysisJobs = new Map<number, string>(); // trackId → workflowId
+const stemsJobs = new Map<number, string>();    // trackId → workflowId
+
+async function isJobRunning(workflowId: string): Promise<boolean> {
+  try {
+    const { status } = await queryWorkflowStatus(workflowId);
+    return status === "RUNNING";
+  } catch {
+    return false;
+  }
+}
 
 export const djStudioRouter = router({
   /**
@@ -32,39 +58,24 @@ export const djStudioRouter = router({
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
 
-      // Decode base64 file data
       const fileBuffer = Buffer.from(input.fileData, "base64");
 
-      // Calculate SHA256 hash for deduplication
       const hash = crypto.createHash("sha256");
       hash.update(fileBuffer);
       const sha256 = hash.digest("hex");
 
-      // Check if track already exists
       const existingTrack = await djDb.findDJTrackByHash(userId, sha256);
       if (existingTrack) {
-        return {
-          trackId: existingTrack.id,
-          isDuplicate: true,
-          message: "Track already exists in your library",
-        };
+        return { trackId: existingTrack.id, isDuplicate: true, message: "Track already exists in your library" };
       }
 
-      // Upload to S3
       const fileKey = `dj-tracks/${userId}/${Date.now()}-${input.fileName}`;
       const contentType =
-        input.fileType === "mp3"
-          ? "audio/mpeg"
-          : input.fileType === "wav"
-          ? "audio/wav"
-          : "audio/mp4";
+        input.fileType === "mp3" ? "audio/mpeg" :
+        input.fileType === "wav" ? "audio/wav" : "audio/mp4";
 
       const { url: fileUrl } = await storagePut(fileKey, fileBuffer, contentType);
 
-      // Get audio duration (placeholder - will be calculated during analysis)
-      const durationSec = 0;
-
-      // Create database record
       const track = await djDb.createDJTrack({
         userId,
         name: input.fileName,
@@ -73,45 +84,59 @@ export const djStudioRouter = router({
         fileType: input.fileType,
         fileSize: input.fileSize,
         sha256,
-        durationSec,
+        durationSec: 0,
       });
 
-      return {
-        trackId: track.id,
-        isDuplicate: false,
-        message: "Track uploaded successfully",
-      };
+      return { trackId: track.id, isDuplicate: false, message: "Track uploaded successfully" };
     }),
 
   /**
-   * Get all tracks for the current user
+   * Get all tracks for the current user, enriched with analysis/stem status
    */
   getTracks: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.user.id;
     const tracks = await djDb.getUserDJTracks(userId);
 
-    // Fetch features for each track
     const tracksWithFeatures = await Promise.all(
       tracks.map(async (track) => {
-        const features = await djDb.getDJTrackFeatures(track.id);
-        const stems = await djDb.getDJStems(track.id);
+        const [features, stems] = await Promise.all([
+          djDb.getDJTrackFeatures(track.id),
+          djDb.getDJStems(track.id),
+        ]);
+
+        // Derive live job status from the in-process cache + Temporal
+        let isAnalyzing = false;
+        let isSeparatingStems = false;
+
+        if (!features) {
+          const wfId = analysisJobs.get(track.id);
+          if (wfId) {
+            isAnalyzing = await isJobRunning(wfId);
+            if (!isAnalyzing) analysisJobs.delete(track.id); // stale entry
+          }
+        }
+
+        if (!stems) {
+          const wfId = stemsJobs.get(track.id);
+          if (wfId) {
+            isSeparatingStems = await isJobRunning(wfId);
+            if (!isSeparatingStems) stemsJobs.delete(track.id);
+          }
+        }
 
         return {
           ...track,
-          durationSec: track.durationSec ?? 0, // Ensure non-null
-          // Analysis status
+          durationSec: track.durationSec ?? 0,
           isAnalyzed: !!features,
-          isAnalyzing: false, // TODO: Check job status from Temporal
-          // Features (convert null to undefined for consistency)
+          isAnalyzing,
           bpm: features?.bpm ?? undefined,
           bpmConfidence: features?.bpmConfidence ?? undefined,
           key: features?.key ?? undefined,
           camelotKey: features?.camelotKey ?? undefined,
           energyAvg: features?.energyAvg ?? undefined,
           lufs: features?.lufs ?? undefined,
-          // Stems status
           hasStemsSeparated: !!stems,
-          isSeparatingStems: false, // TODO: Check job status from Temporal
+          isSeparatingStems,
         };
       })
     );
@@ -120,121 +145,98 @@ export const djStudioRouter = router({
   }),
 
   /**
-   * Delete a track and its associated data
+   * Delete a track, its S3 assets, and its database records
    */
   deleteTrack: protectedProcedure
     .input(z.object({ trackId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      // Verify ownership
       const track = await djDb.getDJTrackById(input.trackId);
-      if (!track) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Track not found",
-        });
+      if (!track) throw new TRPCError({ code: "NOT_FOUND", message: "Track not found" });
+      if (track.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      // Collect all S3 keys to delete
+      const keysToDelete: string[] = [track.fileKey];
+
+      const stems = await djDb.getDJStems(input.trackId);
+      if (stems) {
+        // Collect S3 keys from priority stem columns
+        for (const key of [
+          stems.logDrumKey, stems.kickKey, stems.pianoChordKey,
+          stems.bassSynthKey, stems.leadVocalKey, stems.fluteKey,
+        ]) {
+          if (key) keysToDelete.push(key);
+        }
+        // Also collect keys from the full stem map JSON
+        if (stems.stemMap) {
+          const stemMap = stems.stemMap as Record<string, { key?: string }>;
+          for (const entry of Object.values(stemMap)) {
+            if (entry?.key) keysToDelete.push(entry.key);
+          }
+        }
       }
 
-      if (track.userId !== userId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You don't have permission to delete this track",
-        });
-      }
-
-      // Delete from database (will also delete features and stems)
+      // Delete DB record first (fast), then purge S3 objects (best-effort)
       await djDb.deleteDJTrack(input.trackId);
+      analysisJobs.delete(input.trackId);
+      stemsJobs.delete(input.trackId);
 
-      // TODO: Delete from S3 (track file and stems)
+      await Promise.allSettled(keysToDelete.map(k => storageDelete(k)));
 
-      return {
-        success: true,
-        message: "Track deleted successfully",
-      };
+      return { success: true, message: "Track deleted successfully" };
     }),
 
   /**
-   * Trigger track analysis job (BPM, key, energy curve, segments)
-   * 
-   * This will be implemented with Modal + Temporal in Phase 5
+   * Trigger track analysis job via Temporal → Modal
    */
   analyzeTrack: protectedProcedure
     .input(z.object({ trackId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      // Verify ownership
       const track = await djDb.getDJTrackById(input.trackId);
-      if (!track) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Track not found",
-        });
+      if (!track) throw new TRPCError({ code: "NOT_FOUND", message: "Track not found" });
+      if (track.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      // Don't start a duplicate if one is already running
+      const existingWf = analysisJobs.get(input.trackId);
+      if (existingWf && (await isJobRunning(existingWf))) {
+        return { jobId: existingWf, status: "running", message: "Analysis already in progress" };
       }
 
-      if (track.userId !== userId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You don't have permission to analyze this track",
-        });
-      }
+      const handle = await executeAnalyzeTrackWorkflow(input.trackId, track.fileKey);
+      analysisJobs.set(input.trackId, handle.workflowId);
 
-      // TODO: Trigger Modal analysis job via Temporal workflow
-      // For now, return placeholder response
-      return {
-        jobId: `analysis-${input.trackId}-${Date.now()}`,
-        status: "pending",
-        message: "Analysis job queued (placeholder - Modal integration pending)",
-      };
+      return { jobId: handle.workflowId, status: "pending", message: "Analysis job queued" };
     }),
 
   /**
-   * Trigger stem separation job (vocals, drums, bass, other)
-   * 
-   * This will be implemented with Modal + Temporal in Phase 5
+   * Trigger stem separation job via Temporal → Modal Demucs
    */
   separateStems: protectedProcedure
     .input(z.object({ trackId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
-
-      // Verify ownership
       const track = await djDb.getDJTrackById(input.trackId);
-      if (!track) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Track not found",
-        });
+      if (!track) throw new TRPCError({ code: "NOT_FOUND", message: "Track not found" });
+      if (track.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const existingWf = stemsJobs.get(input.trackId);
+      if (existingWf && (await isJobRunning(existingWf))) {
+        return { jobId: existingWf, status: "running", message: "Stem separation already in progress" };
       }
 
-      if (track.userId !== userId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You don't have permission to separate stems for this track",
-        });
-      }
+      const handle = await executeSeparateStemsWorkflow(input.trackId, track.fileKey, ctx.user.id);
+      stemsJobs.set(input.trackId, handle.workflowId);
 
-      // TODO: Trigger Modal Demucs job via Temporal workflow
-      // For now, return placeholder response
-      return {
-        jobId: `stems-${input.trackId}-${Date.now()}`,
-        status: "pending",
-        message: "Stem separation job queued (placeholder - Modal integration pending)",
-      };
+      return { jobId: handle.workflowId, status: "pending", message: "Stem separation job queued" };
     }),
 
   /**
    * Get vibe presets for DJ set generation
    */
   getVibePresets: protectedProcedure.query(async () => {
-    return await djDb.getAllVibePresets();
+    return djDb.getAllVibePresets();
   }),
 
   /**
-   * Generate DJ set performance plan
-   * 
-   * This will be implemented with Modal + Temporal in Phase 6
+   * Generate DJ set performance plan via Temporal workflow
    */
   generateSet: protectedProcedure
     .input(
@@ -249,44 +251,33 @@ export const djStudioRouter = router({
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
 
-      // Verify all tracks belong to user
       for (const trackId of input.trackIds) {
         const track = await djDb.getDJTrackById(trackId);
         if (!track || track.userId !== userId) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `Track ${trackId} not found or access denied`,
-          });
+          throw new TRPCError({ code: "FORBIDDEN", message: `Track ${trackId} not found or access denied` });
         }
       }
 
-      // TODO: Trigger Modal set planning job via Temporal workflow
-      // For now, return placeholder response
-      return {
-        jobId: `set-${Date.now()}`,
-        status: "pending",
-        message: "Set generation job queued (placeholder - Modal integration pending)",
-      };
+      const handle = await executeGenerateDJSetWorkflow(userId, input.trackIds, {
+        durationMinutes: Math.round(input.durationTargetSec / 60),
+        vibePreset: input.preset,
+        riskLevel: input.riskLevel,
+        allowVocalOverlay: input.allowVocalOverlay,
+      });
+
+      return { jobId: handle.workflowId, status: "pending", message: "Set generation job queued" };
     }),
 
   /**
-   * Get all performance plans (generated DJ sets) for the current user
+   * Get all performance plans for the current user
    */
   getPerformancePlans: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.user.id;
-    const plans = await djDb.getUserPerformancePlans(userId);
-
-    // Fetch renders for each plan
-    const plansWithRenders = await Promise.all(
+    const plans = await djDb.getUserPerformancePlans(ctx.user.id);
+    return Promise.all(
       plans.map(async (plan) => {
         const renders = await djDb.getPlanRenders(plan.id);
-        return {
-          ...plan,
-          renders: renders || [],
-        };
+        return { ...plan, renders: renders || [] };
       })
     );
-
-    return plansWithRenders;
   }),
 });

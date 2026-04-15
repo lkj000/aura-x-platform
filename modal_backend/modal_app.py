@@ -1,27 +1,41 @@
 """
-AURA-X DJ Studio - Modal Backend
-Level-5 Autonomous Audio Processing
-
-This Modal app provides serverless audio processing capabilities:
-- Track analysis (BPM, key, energy curve, segments)
-- Stem separation (vocals, drums, bass, other)
-- Set rendering (crossfade, tempo adjustment, EQ matching)
+AURA-X DJ Studio — Modal Backend
+Amapiano-Specific Audio Processing Pipeline
 
 Architecture:
-- Modal for serverless compute (GPU for Demucs, CPU for FFmpeg/Essentia)
-- S3 for audio file storage
-- Webhook callbacks to Node.js backend for database updates
+  CPU functions: analysis (Essentia + Whisper + amapiano_analyzer)
+  GPU functions: stem separation (Demucs htdemucs_6s + 26-stem classifier)
+  Web endpoints: HTTP-callable by Node.js training router and Temporal workflows
+  S3: all audio artefacts stored at defined key prefixes
+  Webhooks: callbacks to Node.js tRPC endpoints on completion
+
+Key endpoints:
+  POST /analyze-track              — DJ Studio: analysis + Amapiano features
+  POST /separate-stems             — DJ Studio: 26-stem separation
+  POST /render-dj-set              — DJ Studio: final mix render
+  POST /analyze-training-track     — Training pipeline: analysis + cultural score
+  POST /separate-stems-training    — Training pipeline: 26-stem + SDR quality
 """
 
 import modal
 import os
 from typing import Dict, Any, List, Optional
 
-# Create Modal app
+# ---------------------------------------------------------------------------
+# App definition
+# ---------------------------------------------------------------------------
+
 app = modal.App("aura-x-dj-studio")
 
-# Define Modal image with audio processing dependencies
-audio_image = (
+# Model cache volume (Demucs ~300 MB, Whisper-small ~450 MB)
+models_volume = modal.Volume.from_name("aura-x-models", create_if_missing=True)
+
+# ---------------------------------------------------------------------------
+# Container images
+# ---------------------------------------------------------------------------
+
+# CPU image: Essentia + librosa + scipy + Whisper (CPU inference)
+_cpu_base = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install(
         "ffmpeg",
@@ -34,6 +48,7 @@ audio_image = (
         "libavutil-dev",
         "libsamplerate0-dev",
         "libtag1-dev",
+        "rubberband-cli",   # tempo-shifting for set renderer
     )
     .pip_install(
         "essentia==2.1b6.dev1110",
@@ -44,365 +59,633 @@ audio_image = (
         "pydub==0.25.1",
         "boto3==1.34.34",
         "requests==2.31.0",
-        "demucs==4.0.1",
+        # Whisper runs on CPU here; GPU variant overrides below
+        "openai-whisper==20231117",
         "torch==2.1.2",
         "torchaudio==2.1.2",
     )
+    .add_local_python_source("amapiano_analyzer")
+    .add_local_python_source("stem_separator_26")
+    .add_local_python_source("set_renderer")
+    .add_local_python_source("set_planner")
 )
 
-# Modal secrets for AWS S3 credentials
-# These should be configured in Modal dashboard:
-# - AWS_ACCESS_KEY_ID
-# - AWS_SECRET_ACCESS_KEY
-# - S3_BUCKET
-# - S3_REGION
-# - WEBHOOK_BASE_URL (Node.js backend URL for callbacks)
+# GPU image: same dependencies + Demucs, PyTorch GPU
+_gpu_base = (
+    modal.Image.debian_slim(python_version="3.11")
+    .apt_install(
+        "ffmpeg",
+        "libsndfile1",
+        "libsndfile1-dev",
+        "libyaml-dev",
+        "libfftw3-dev",
+        "libavcodec-dev",
+        "libavformat-dev",
+        "libavutil-dev",
+        "libsamplerate0-dev",
+        "libtag1-dev",
+        "rubberband-cli",
+    )
+    .pip_install(
+        "essentia==2.1b6.dev1110",
+        "numpy==1.24.3",
+        "scipy==1.11.4",
+        "librosa==0.10.1",
+        "soundfile==0.12.1",
+        "pydub==0.25.1",
+        "boto3==1.34.34",
+        "requests==2.31.0",
+        "openai-whisper==20231117",
+        # GPU-enabled torch
+        "torch==2.1.2+cu121",
+        "torchaudio==2.1.2+cu121",
+        "demucs==4.0.1",
+        extra_options="--extra-index-url https://download.pytorch.org/whl/cu121",
+    )
+    .add_local_python_source("amapiano_analyzer")
+    .add_local_python_source("stem_separator_26")
+    .add_local_python_source("set_renderer")
+    .add_local_python_source("set_planner")
+)
 
-# Modal volume for model caching (Demucs models are ~300MB each)
-models_volume = modal.Volume.from_name("dj-studio-models", create_if_missing=True)
+# ---------------------------------------------------------------------------
+# S3 helpers
+# ---------------------------------------------------------------------------
 
-# ============================================================================
-# SHARED UTILITIES
-# ============================================================================
-
-@app.function(image=audio_image, secrets=[modal.Secret.from_name("aura-x-aws-secrets")])
-def download_from_s3(file_key: str, local_path: str) -> None:
-    """Download a file from S3 to local path"""
+def _s3_client():
+    """Create a boto3 S3 client from env secrets."""
     import boto3
-    
-    s3_client = boto3.client(
+    return boto3.client(
         "s3",
         aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
-        region_name=os.environ["S3_REGION"],
+        region_name=os.environ.get("S3_REGION", "us-east-1"),
     )
-    
-    bucket = os.environ["S3_BUCKET"]
-    s3_client.download_file(bucket, file_key, local_path)
 
 
-@app.function(image=audio_image, secrets=[modal.Secret.from_name("aura-x-aws-secrets")])
-def upload_to_s3(local_path: str, file_key: str, content_type: str = "audio/mpeg") -> str:
-    """Upload a file from local path to S3 and return URL"""
-    import boto3
-    
-    s3_client = boto3.client(
-        "s3",
-        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
-        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
-        region_name=os.environ["S3_REGION"],
-    )
-    
-    bucket = os.environ["S3_BUCKET"]
-    s3_client.upload_file(
+def _s3_bucket() -> str:
+    return os.environ["S3_BUCKET"]
+
+
+def _s3_download(file_key: str, local_path: str) -> None:
+    _s3_client().download_file(_s3_bucket(), file_key, local_path)
+
+
+def _s3_upload(local_path: str, file_key: str, content_type: str = "audio/wav") -> str:
+    """Upload file to S3 and return its public URL."""
+    client = _s3_client()
+    bucket = _s3_bucket()
+    client.upload_file(
         local_path,
         bucket,
         file_key,
         ExtraArgs={"ContentType": content_type},
     )
-    
-    # Return public URL
-    region = os.environ["S3_REGION"]
+    region = os.environ.get("S3_REGION", "us-east-1")
     return f"https://{bucket}.s3.{region}.amazonaws.com/{file_key}"
 
 
-@app.function(image=audio_image, secrets=[modal.Secret.from_name("aura-x-aws-secrets")])
-def send_webhook(endpoint: str, data: Dict[str, Any]) -> None:
-    """Send webhook callback to Node.js backend"""
+def _send_webhook(webhook_url: str, data: Dict[str, Any]) -> None:
+    """POST JSON payload to a webhook URL (fire-and-forget with retry)."""
     import requests
-    
-    webhook_base_url = os.environ["WEBHOOK_BASE_URL"]
-    url = f"{webhook_base_url}{endpoint}"
-    
-    try:
-        response = requests.post(url, json=data, timeout=30)
-        response.raise_for_status()
-        print(f"Webhook sent successfully: {endpoint}")
-    except Exception as e:
-        print(f"Webhook failed: {endpoint}, error: {e}")
+    for attempt in range(3):
+        try:
+            r = requests.post(webhook_url, json=data, timeout=30)
+            r.raise_for_status()
+            print(f"[Webhook] OK → {webhook_url}")
+            return
+        except Exception as exc:
+            print(f"[Webhook] Attempt {attempt + 1} failed: {exc}")
+    print(f"[Webhook] All retries exhausted for {webhook_url}")
+
+
+# ---------------------------------------------------------------------------
+# Camelot wheel helper (shared by analysis functions)
+# ---------------------------------------------------------------------------
+
+_CAMELOT_MAJOR = {
+    "C": "8B", "G": "9B", "D": "10B", "A": "11B", "E": "12B", "B": "1B",
+    "F#": "2B", "Gb": "2B", "C#": "3B", "Db": "3B", "G#": "4B", "Ab": "4B",
+    "D#": "5B", "Eb": "5B", "A#": "6B", "Bb": "6B", "F": "7B",
+}
+_CAMELOT_MINOR = {
+    "A": "8A", "E": "9A", "B": "10A", "F#": "11A", "Gb": "11A", "C#": "12A",
+    "Db": "12A", "G#": "1A", "Ab": "1A", "D#": "2A", "Eb": "2A", "A#": "3A",
+    "Bb": "3A", "F": "4A", "C": "5A", "G": "6A", "D": "7A",
+}
+
+def _camelot(key: str, scale: str) -> str:
+    tbl = _CAMELOT_MAJOR if scale == "major" else _CAMELOT_MINOR
+    return tbl.get(key, "?")
+
+
+# Compatible Camelot neighbors (same number ±1, same letter ±1 letter)
+def _compatible_keys(camelot: str) -> List[str]:
+    if len(camelot) < 2 or not camelot[:-1].isdigit():
+        return []
+    num = int(camelot[:-1])
+    letter = camelot[-1]
+    neighbors = []
+    for n in [(num - 1) % 12 or 12, num, (num % 12) + 1]:
+        neighbors.append(f"{n}{letter}")
+    alt_letter = "B" if letter == "A" else "A"
+    neighbors.append(f"{num}{alt_letter}")
+    return neighbors
 
 
 # ============================================================================
-# AUDIO ANALYSIS WORKER
+# ANALYSIS — DJ STUDIO
 # ============================================================================
 
 @app.function(
-    image=audio_image,
+    image=_cpu_base,
     secrets=[modal.Secret.from_name("aura-x-aws-secrets")],
-    timeout=600,  # 10 minutes max
+    volumes={"/root/.cache": models_volume},
+    timeout=600,
     cpu=4.0,
 )
-def analyze_track(track_id: int, file_key: str) -> Dict[str, Any]:
+@modal.web_endpoint(method="POST")
+def analyze_track(body: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Analyze audio track using FFmpeg and Essentia
-    
-    Returns:
-    - duration_sec: float
-    - bpm: float
-    - bpm_confidence: float
-    - key: str (e.g., "C major", "A minor")
-    - camelot_key: str (e.g., "8B", "5A")
-    - energy_curve: List[float] (energy values at 1-second intervals)
-    - segments: List[Dict] (beat/phrase boundaries)
-    - lufs: float (integrated loudness)
-    - true_peak: float (maximum peak level)
+    Full Amapiano analysis for a DJ Studio track.
+
+    Request body:
+        track_id     int
+        file_key     str   (S3 key for the raw audio)
+        webhook_url  str   (optional — tRPC endpoint to POST results to)
+
+    Returns the full analysis result (also POSTs it to webhook_url).
     """
+    import tempfile, os, json
     import essentia.standard as es
     import numpy as np
-    import subprocess
-    import json
-    import tempfile
-    import os
-    
-    print(f"[Analysis] Starting analysis for track {track_id}")
-    
-    # Download audio file from S3
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_input:
-        input_path = tmp_input.name
-    
-    download_from_s3.remote(file_key, input_path)
-    print(f"[Analysis] Downloaded file: {file_key}")
-    
+
+    from amapiano_analyzer import (
+        compute_swing_percent,
+        detect_log_drum,
+        compute_piano_complexity,
+        detect_flute,
+        detect_language,
+        compute_cultural_score,
+        infer_regional_style,
+        infer_production_era,
+    )
+
+    track_id: int = body["track_id"]
+    file_key: str = body["file_key"]
+    webhook_url: Optional[str] = body.get("webhook_url")
+
+    print(f"[Analysis] track={track_id}  key={file_key}")
+
+    ext = os.path.splitext(file_key)[-1] or ".mp3"
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+        input_path = f.name
+
     try:
-        # Load audio with Essentia
+        _s3_download(file_key, input_path)
+
+        # ── Essentia core analysis ───────────────────────────────────────────
         loader = es.MonoLoader(filename=input_path, sampleRate=44100)
         audio = loader()
-        duration_sec = len(audio) / 44100.0
-        
-        print(f"[Analysis] Audio loaded: {duration_sec:.2f} seconds")
-        
-        # BPM Detection
-        rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
-        bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(audio)
-        bpm_confidence = float(beats_confidence)
-        
-        print(f"[Analysis] BPM: {bpm:.2f} (confidence: {bpm_confidence:.2f})")
-        
-        # Key Detection
+        sr = 44100
+        duration_sec = len(audio) / float(sr)
+
+        rhythm = es.RhythmExtractor2013(method="multifeature")
+        bpm, beats, beats_confidence, _, beats_intervals = rhythm(audio)
+
         key_extractor = es.KeyExtractor()
         key, scale, key_strength = key_extractor(audio)
-        key_str = f"{key} {scale}"
-        
-        # Convert to Camelot wheel notation
-        camelot_key = convert_to_camelot(key, scale)
-        
-        print(f"[Analysis] Key: {key_str} (Camelot: {camelot_key})")
-        
-        # Energy Curve (1-second intervals)
-        energy_extractor = es.Energy()
-        frame_size = 44100  # 1 second
-        hop_size = 44100
-        
-        energy_curve = []
-        for i in range(0, len(audio), hop_size):
-            frame = audio[i:i + frame_size]
+        camelot_key = _camelot(key, scale)
+        compatible_keys = _compatible_keys(camelot_key)
+
+        # Energy curve (1-second windows)
+        energy_curve: List[float] = []
+        hop = sr
+        energy_fn = es.Energy()
+        for i in range(0, len(audio), hop):
+            frame = audio[i : i + hop]
             if len(frame) > 0:
-                energy = float(energy_extractor(frame))
-                energy_curve.append(energy)
-        
-        energy_avg = float(np.mean(energy_curve))
-        
-        print(f"[Analysis] Energy curve: {len(energy_curve)} points, avg: {energy_avg:.4f}")
-        
-        # Segment Detection (beat positions)
-        segments = []
-        for i, beat_time in enumerate(beats):
-            segments.append({
-                "time": float(beat_time),
-                "type": "beat",
-                "confidence": float(beats_confidence),
-            })
-        
-        # Downbeat Detection (phrase boundaries)
-        downbeat_extractor = es.BeatTrackerMultiFeature()
-        downbeats = downbeat_extractor(audio)
-        
-        for downbeat_time in downbeats:
-            segments.append({
-                "time": float(downbeat_time),
-                "type": "downbeat",
-                "confidence": 1.0,
-            })
-        
-        # Sort segments by time
-        segments.sort(key=lambda x: x["time"])
-        
-        print(f"[Analysis] Segments: {len(segments)} markers")
-        
-        # Loudness Analysis (LUFS)
-        loudness_extractor = es.LoudnessEBUR128()
-        loudness_integrated, loudness_range, loudness_momentary, loudness_shortterm = loudness_extractor(audio)
-        lufs = float(loudness_integrated)
-        
-        # True Peak
+                energy_curve.append(float(energy_fn(frame)))
+        energy_avg = float(np.mean(energy_curve)) if energy_curve else 0.0
+
+        # Downbeats
+        try:
+            dbt = es.BeatTrackerMultiFeature()
+            downbeats_arr = dbt(audio)
+            downbeats = [float(t) for t in downbeats_arr]
+        except Exception:
+            downbeats = []
+
+        # LUFS
+        try:
+            lufs_fn = es.LoudnessEBUR128()
+            lufs_integrated, lufs_range, _, _ = lufs_fn(audio)
+            lufs = float(lufs_integrated)
+            dynamic_range = float(lufs_range)
+        except Exception:
+            lufs = -23.0
+            dynamic_range = 6.0
+
         true_peak = float(np.max(np.abs(audio)))
-        
-        print(f"[Analysis] Loudness: {lufs:.2f} LUFS, True Peak: {true_peak:.4f}")
-        
-        # Prepare result
-        result = {
+
+        # ── Amapiano-specific features ───────────────────────────────────────
+        beats_np = np.array([float(b) for b in beats])
+        swing_pct = compute_swing_percent(beats_np, float(bpm))
+
+        log_drum_info = detect_log_drum(audio, beats_np, float(bpm))
+        piano_complexity = compute_piano_complexity(audio)
+        flute_detected = detect_flute(audio)
+
+        # Language detection (Whisper — may be slow on CPU; handled gracefully)
+        try:
+            lang_info = detect_language(input_path)
+        except Exception as exc:
+            print(f"[Analysis] Language detection skipped: {exc}")
+            lang_info = {
+                "detected_language": "eng",
+                "language_confidence": 0.0,
+                "detected_languages": ["eng"],
+                "transcription": "",
+            }
+
+        # Cultural score
+        cultural_score, cultural_breakdown = compute_cultural_score(
+            bpm=float(bpm),
+            swing_percent=swing_pct,
+            log_drum_detected=log_drum_info["detected"],
+            log_drum_prominence=log_drum_info.get("prominence", 0.0),
+            piano_complexity=piano_complexity,
+            flute_detected=flute_detected,
+            energy_avg=energy_avg,
+            detected_language=lang_info["detected_language"],
+            language_confidence=lang_info["language_confidence"],
+        )
+
+        regional_style = infer_regional_style(
+            bpm=float(bpm),
+            swing_percent=swing_pct,
+            detected_language=lang_info["detected_language"],
+            log_drum_prominence=log_drum_info.get("prominence", 0.0),
+        )
+        production_era = infer_production_era(
+            bpm=float(bpm),
+            lufs=lufs,
+            swing_percent=swing_pct,
+        )
+
+        # Beat-grid (compact: beat positions for client waveform display)
+        beatgrid = [float(b) for b in beats[:500]]  # cap at 500 markers
+
+        result: Dict[str, Any] = {
             "track_id": track_id,
             "duration_sec": duration_sec,
             "bpm": float(bpm),
-            "bpm_confidence": bpm_confidence,
-            "key": key_str,
+            "bpm_confidence": float(beats_confidence),
+            "key": key,
+            "scale": scale,
             "camelot_key": camelot_key,
+            "compatible_keys": compatible_keys,
             "energy_curve": energy_curve,
             "energy_avg": energy_avg,
-            "segments": segments,
+            "beatgrid": beatgrid,
+            "downbeats": downbeats,
             "lufs": lufs,
+            "dynamic_range": dynamic_range,
             "true_peak": true_peak,
+            # Amapiano
+            "swing_percent": swing_pct,
+            "log_drum_detected": log_drum_info["detected"],
+            "log_drum_freq_hz": log_drum_info.get("freq_hz"),
+            "log_drum_prominence": log_drum_info.get("prominence"),
+            "piano_complexity": piano_complexity,
+            "flute_detected": flute_detected,
+            "cultural_score": cultural_score,
+            "cultural_score_breakdown": cultural_breakdown,
+            "detected_language": lang_info["detected_language"],
+            "language_confidence": lang_info["language_confidence"],
+            "detected_languages": lang_info["detected_languages"],
+            "regional_style": regional_style,
+            "production_era": production_era,
         }
-        
-        # Send webhook to backend
-        send_webhook.remote("/api/dj-studio/analysis-complete", result)
-        
-        print(f"[Analysis] Complete for track {track_id}")
-        
+
+        if webhook_url:
+            _send_webhook(webhook_url, result)
+
+        print(f"[Analysis] DONE  track={track_id}  bpm={bpm:.1f}  cultural={cultural_score:.1f}")
         return result
-        
+
     finally:
-        # Cleanup
         if os.path.exists(input_path):
             os.unlink(input_path)
 
 
-def convert_to_camelot(key: str, scale: str) -> str:
-    """Convert musical key to Camelot wheel notation"""
-    # Camelot wheel mapping
-    major_keys = {
-        "C": "8B", "G": "9B", "D": "10B", "A": "11B", "E": "12B", "B": "1B",
-        "F#": "2B", "Gb": "2B", "C#": "3B", "Db": "3B", "G#": "4B", "Ab": "4B",
-        "D#": "5B", "Eb": "5B", "A#": "6B", "Bb": "6B", "F": "7B",
-    }
-    
-    minor_keys = {
-        "A": "8A", "E": "9A", "B": "10A", "F#": "11A", "Gb": "11A", "C#": "12A",
-        "Db": "12A", "G#": "1A", "Ab": "1A", "D#": "2A", "Eb": "2A", "A#": "3A",
-        "Bb": "3A", "F": "4A", "C": "5A", "G": "6A", "D": "7A",
-    }
-    
-    if scale == "major":
-        return major_keys.get(key, "?")
-    else:
-        return minor_keys.get(key, "?")
-
-
 # ============================================================================
-# STEM SEPARATION WORKER
+# STEM SEPARATION — DJ STUDIO (26 stems)
 # ============================================================================
 
 @app.function(
-    image=audio_image,
+    image=_gpu_base,
     secrets=[modal.Secret.from_name("aura-x-aws-secrets")],
-    volumes={"/models": models_volume},
-    gpu="T4",  # Demucs requires GPU
-    timeout=1800,  # 30 minutes max
+    volumes={"/root/.cache": models_volume},
+    gpu="A10G",
+    timeout=1800,
 )
-def separate_stems(track_id: int, file_key: str, user_id: int) -> Dict[str, Any]:
+@modal.web_endpoint(method="POST")
+def separate_stems(body: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Separate audio track into 4 stems using Demucs
-    
-    Returns:
-    - vocals_url: str
-    - drums_url: str
-    - bass_url: str
-    - other_url: str
+    26-stem Amapiano separation for a DJ Studio track.
+
+    Request body:
+        track_id     int
+        file_key     str   (S3 key for raw audio)
+        user_id      int   (used for S3 prefix)
+        webhook_url  str   (optional)
+
+    Returns stem_map: { stem_id: { url, key, sdr_db } }
     """
-    import torch
-    import torchaudio
-    from demucs.pretrained import get_model
-    from demucs.apply import apply_model
-    import tempfile
-    import os
-    
-    print(f"[Stems] Starting stem separation for track {track_id}")
-    
-    # Download audio file from S3
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_input:
-        input_path = tmp_input.name
-    
-    download_from_s3.remote(file_key, input_path)
-    print(f"[Stems] Downloaded file: {file_key}")
-    
+    import tempfile, os
+    from stem_separator_26 import separate_26_stems
+
+    track_id: int = body["track_id"]
+    file_key: str = body["file_key"]
+    user_id: int = body["user_id"]
+    webhook_url: Optional[str] = body.get("webhook_url")
+
+    print(f"[Stems] track={track_id}  key={file_key}")
+
+    ext = os.path.splitext(file_key)[-1] or ".mp3"
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+        input_path = f.name
+
+    tmp_dir = tempfile.mkdtemp(prefix="stems_")
+
     try:
-        # Load Demucs model (cached in volume)
-        model = get_model("htdemucs")
-        model.eval()
-        
-        print(f"[Stems] Model loaded: htdemucs")
-        
-        # Load audio
-        audio, sr = torchaudio.load(input_path)
-        
-        # Resample to 44100 Hz if needed
-        if sr != 44100:
-            resampler = torchaudio.transforms.Resample(sr, 44100)
-            audio = resampler(audio)
-            sr = 44100
-        
-        # Ensure stereo
-        if audio.shape[0] == 1:
-            audio = audio.repeat(2, 1)
-        
-        print(f"[Stems] Audio loaded: {audio.shape}")
-        
-        # Apply model
-        with torch.no_grad():
-            sources = apply_model(model, audio.unsqueeze(0), device="cuda")[0]
-        
-        # Sources order: drums, bass, other, vocals
-        stems = {
-            "drums": sources[0],
-            "bass": sources[1],
-            "other": sources[2],
-            "vocals": sources[3],
-        }
-        
-        print(f"[Stems] Separation complete, uploading to S3...")
-        
-        # Save and upload each stem
-        stem_urls = {}
-        stem_keys = {}
-        
-        for stem_name, stem_audio in stems.items():
-            # Save to temp file
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_stem:
-                stem_path = tmp_stem.name
-            
-            torchaudio.save(stem_path, stem_audio, sr)
-            
-            # Upload to S3
-            stem_key = f"dj-stems/{user_id}/{track_id}/{stem_name}.wav"
-            stem_url = upload_to_s3.remote(stem_path, stem_key, "audio/wav")
-            
-            stem_urls[f"{stem_name}_url"] = stem_url
-            stem_keys[f"{stem_name}_key"] = stem_key
-            
-            # Cleanup temp file
-            os.unlink(stem_path)
-            
-            print(f"[Stems] Uploaded {stem_name}: {stem_url}")
-        
-        # Prepare result
-        result = {
+        _s3_download(file_key, input_path)
+
+        s3_prefix = f"dj-stems/{user_id}/{track_id}/"
+
+        stem_map = separate_26_stems(
+            input_path=input_path,
+            output_dir=tmp_dir,
+            s3_prefix=s3_prefix,
+            upload_fn=_s3_upload,
+            model="htdemucs_6s",
+        )
+
+        stems_completed = len(stem_map)
+        avg_sdr = (
+            sum(v.get("sdr_db", 0) for v in stem_map.values()) / stems_completed
+            if stems_completed > 0 else 0.0
+        )
+
+        result: Dict[str, Any] = {
             "track_id": track_id,
-            **stem_urls,
-            **stem_keys,
-            "model_version": "htdemucs",
+            "stem_map": stem_map,
+            "stems_completed": stems_completed,
+            "avg_sdr_db": avg_sdr,
         }
-        
-        # Send webhook to backend
-        send_webhook.remote("/api/dj-studio/stems-complete", result)
-        
-        print(f"[Stems] Complete for track {track_id}")
-        
+
+        if webhook_url:
+            _send_webhook(webhook_url, result)
+
+        print(f"[Stems] DONE  track={track_id}  stems={stems_completed}  avg_sdr={avg_sdr:.1f} dB")
         return result
-        
+
     finally:
-        # Cleanup
         if os.path.exists(input_path):
             os.unlink(input_path)
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+# ============================================================================
+# ANALYSIS — TRAINING PIPELINE
+# ============================================================================
+
+@app.function(
+    image=_cpu_base,
+    secrets=[modal.Secret.from_name("aura-x-aws-secrets")],
+    volumes={"/root/.cache": models_volume},
+    timeout=900,
+    cpu=4.0,
+)
+@modal.web_endpoint(method="POST")
+def analyze_training_track(body: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Analysis for training pipeline.  Same computation as analyze_track but
+    posts to training.analysisWebhook with training_track_id field.
+
+    Request body:
+        training_track_id  int
+        file_key           str
+        webhook_url        str   (tRPC /training.analysisWebhook)
+    """
+    import tempfile, os
+    import essentia.standard as es
+    import numpy as np
+
+    from amapiano_analyzer import (
+        compute_swing_percent,
+        detect_log_drum,
+        compute_piano_complexity,
+        detect_flute,
+        detect_language,
+        compute_cultural_score,
+        infer_regional_style,
+        infer_production_era,
+    )
+
+    training_track_id: int = body["training_track_id"]
+    file_key: str = body["file_key"]
+    webhook_url: str = body["webhook_url"]
+
+    print(f"[TrainingAnalysis] training_track_id={training_track_id}  key={file_key}")
+
+    # Generate a job_id for the response (used by Node before webhook fires)
+    job_id = f"train-analyze-{training_track_id}"
+
+    ext = os.path.splitext(file_key)[-1] or ".mp3"
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+        input_path = f.name
+
+    try:
+        _s3_download(file_key, input_path)
+
+        loader = es.MonoLoader(filename=input_path, sampleRate=44100)
+        audio = loader()
+        sr = 44100
+        duration_sec = len(audio) / float(sr)
+
+        rhythm = es.RhythmExtractor2013(method="multifeature")
+        bpm, beats, beats_confidence, _, _ = rhythm(audio)
+
+        key_extractor = es.KeyExtractor()
+        key, scale, _ = key_extractor(audio)
+
+        try:
+            lufs_fn = es.LoudnessEBUR128()
+            lufs_integrated, _, _, _ = lufs_fn(audio)
+            lufs = float(lufs_integrated)
+        except Exception:
+            lufs = -23.0
+
+        beats_np = np.array([float(b) for b in beats])
+        swing_pct = compute_swing_percent(beats_np, float(bpm))
+
+        energy_curve: List[float] = []
+        energy_fn = es.Energy()
+        for i in range(0, len(audio), sr):
+            frame = audio[i : i + sr]
+            if len(frame) > 0:
+                energy_curve.append(float(energy_fn(frame)))
+        energy_avg = float(np.mean(energy_curve)) if energy_curve else 0.0
+
+        log_drum_info = detect_log_drum(audio, beats_np, float(bpm))
+        piano_complexity = compute_piano_complexity(audio)
+        flute_detected = detect_flute(audio)
+
+        try:
+            lang_info = detect_language(input_path)
+        except Exception as exc:
+            print(f"[TrainingAnalysis] Language detection skipped: {exc}")
+            lang_info = {
+                "detected_language": "eng",
+                "language_confidence": 0.0,
+                "detected_languages": ["eng"],
+                "transcription": "",
+            }
+
+        cultural_score, cultural_breakdown = compute_cultural_score(
+            bpm=float(bpm),
+            swing_percent=swing_pct,
+            log_drum_detected=log_drum_info["detected"],
+            log_drum_prominence=log_drum_info.get("prominence", 0.0),
+            piano_complexity=piano_complexity,
+            flute_detected=flute_detected,
+            energy_avg=energy_avg,
+            detected_language=lang_info["detected_language"],
+            language_confidence=lang_info["language_confidence"],
+        )
+
+        regional_style = infer_regional_style(
+            bpm=float(bpm),
+            swing_percent=swing_pct,
+            detected_language=lang_info["detected_language"],
+            log_drum_prominence=log_drum_info.get("prominence", 0.0),
+        )
+        production_era = infer_production_era(
+            bpm=float(bpm),
+            lufs=lufs,
+            swing_percent=swing_pct,
+        )
+
+        # Webhook payload matches training.analysisWebhook Zod schema
+        webhook_payload: Dict[str, Any] = {
+            "training_track_id": training_track_id,
+            "bpm": float(bpm),
+            "key": key,
+            "scale": scale,
+            "swing_percent": swing_pct,
+            "lufs": lufs,
+            "duration_sec": duration_sec,
+            "cultural_score": cultural_score,
+            "detected_language": lang_info["detected_language"],
+            "detected_languages": lang_info["detected_languages"],
+            "regional_style": regional_style,
+        }
+
+        _send_webhook(webhook_url, webhook_payload)
+
+        print(
+            f"[TrainingAnalysis] DONE  id={training_track_id}  "
+            f"bpm={bpm:.1f}  cultural={cultural_score:.1f}  "
+            f"lang={lang_info['detected_language']}"
+        )
+        return {"job_id": job_id, "status": "complete"}
+
+    finally:
+        if os.path.exists(input_path):
+            os.unlink(input_path)
+
+
+# ============================================================================
+# STEM SEPARATION — TRAINING PIPELINE (26 stems + SDR quality)
+# ============================================================================
+
+@app.function(
+    image=_gpu_base,
+    secrets=[modal.Secret.from_name("aura-x-aws-secrets")],
+    volumes={"/root/.cache": models_volume},
+    gpu="A10G",
+    timeout=3600,
+)
+@modal.web_endpoint(method="POST")
+def separate_stems_training(body: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    26-stem separation for training tracks.  Stores stems under:
+        training-data/amapiano/stems/{training_track_id}/{stem_id}.wav
+
+    Request body:
+        training_track_id  int
+        file_key           str   (S3 key for raw audio)
+        stems_prefix       str   (S3 prefix for output stems)
+        webhook_url        str   (tRPC /training.stemsWebhook)
+    """
+    import tempfile, os, shutil
+    from stem_separator_26 import separate_26_stems
+
+    training_track_id: int = body["training_track_id"]
+    file_key: str = body["file_key"]
+    stems_prefix: str = body.get("stems_prefix", f"training-data/amapiano/stems/{training_track_id}/")
+    webhook_url: str = body["webhook_url"]
+
+    print(f"[TrainingStems] training_track_id={training_track_id}  key={file_key}")
+
+    job_id = f"train-stems-{training_track_id}"
+
+    ext = os.path.splitext(file_key)[-1] or ".mp3"
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+        input_path = f.name
+
+    tmp_dir = tempfile.mkdtemp(prefix="train_stems_")
+
+    try:
+        _s3_download(file_key, input_path)
+
+        stem_map = separate_26_stems(
+            input_path=input_path,
+            output_dir=tmp_dir,
+            s3_prefix=stems_prefix,
+            upload_fn=_s3_upload,
+            model="htdemucs_6s",
+        )
+
+        stems_completed = len(stem_map)
+        avg_sdr = (
+            sum(v.get("sdr_db", 0) for v in stem_map.values()) / stems_completed
+            if stems_completed > 0 else 0.0
+        )
+
+        # Webhook payload matches training.stemsWebhook Zod schema
+        webhook_payload: Dict[str, Any] = {
+            "training_track_id": training_track_id,
+            "stems_completed": stems_completed,
+            "avg_sdr_db": avg_sdr,
+            "stem_map": stem_map,
+        }
+
+        _send_webhook(webhook_url, webhook_payload)
+
+        print(
+            f"[TrainingStems] DONE  id={training_track_id}  "
+            f"stems={stems_completed}  avg_sdr={avg_sdr:.1f} dB"
+        )
+        return {"job_id": job_id, "status": "complete", "stems_completed": stems_completed}
+
+    finally:
+        if os.path.exists(input_path):
+            os.unlink(input_path)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ============================================================================
@@ -410,58 +693,47 @@ def separate_stems(track_id: int, file_key: str, user_id: int) -> Dict[str, Any]
 # ============================================================================
 
 @app.function(
-    image=audio_image,
+    image=_cpu_base,
     secrets=[modal.Secret.from_name("aura-x-aws-secrets")],
-    timeout=3600,  # 60 minutes max for long sets
+    volumes={"/root/.cache": models_volume},
+    timeout=3600,
+    cpu=8.0,
 )
-def render_dj_set(
-    plan_id: int,
-    performance_plan: Dict[str, Any],
-    tracks_data: List[Dict[str, Any]],
-    user_id: int,
-    use_stem_transitions: bool = True
-) -> Dict[str, Any]:
+@modal.web_endpoint(method="POST")
+def render_dj_set(body: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Render complete DJ set from performance plan
-    
-    Args:
-        plan_id: Performance plan ID
-        performance_plan: Plan with tracks and transitions
-        tracks_data: List of track metadata
-        user_id: User ID for S3 path
-        use_stem_transitions: Use stem-based transitions if available
-    
-    Returns:
-        Render metadata (mix_url, cue_sheet, duration)
+    Render complete DJ set from performance plan.
+
+    Request body:
+        plan_id             int
+        performance_plan    dict
+        tracks_data         list[dict]
+        user_id             int
+        use_stem_transitions bool (default true)
+        webhook_url         str  (optional)
     """
-    from set_renderer import render_dj_set as render_set
-    import tempfile
-    import os
-    
-    print(f"[Render] Starting render for plan {plan_id}")
-    
-    # Create temp output file
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_output:
-        output_path = tmp_output.name
-    
+    import tempfile, os, json, shutil
+    from set_renderer import render_dj_set as _render
+
+    plan_id: int = body["plan_id"]
+    performance_plan: Dict = body["performance_plan"]
+    tracks_data: List[Dict] = body["tracks_data"]
+    user_id: int = body["user_id"]
+    use_stem_transitions: bool = body.get("use_stem_transitions", True)
+    webhook_url: Optional[str] = body.get("webhook_url")
+
+    print(f"[Render] plan={plan_id}")
+
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        output_path = f.name
+    cue_sheet_path = output_path.replace(".mp3", "_cuesheet.json")
+
     try:
-        # Render the set
-        metadata = render_set(
-            performance_plan,
-            tracks_data,
-            output_path,
-            use_stem_transitions
-        )
-        
-        print(f"[Render] Mix complete: {metadata['total_duration']:.1f}s, {metadata['num_transitions']} transitions")
-        
-        # Upload to S3
+        metadata = _render(performance_plan, tracks_data, output_path, use_stem_transitions)
+
         mix_key = f"dj-renders/{user_id}/{plan_id}/mix.mp3"
-        mix_url = upload_to_s3.remote(output_path, mix_key, "audio/mpeg")
-        
-        print(f"[Render] Uploaded mix: {mix_url}")
-        
-        # Generate cue sheet
+        mix_url = _s3_upload(output_path, mix_key, "audio/mpeg")
+
         cue_sheet = {
             "plan_id": plan_id,
             "total_duration": metadata["total_duration"],
@@ -469,37 +741,30 @@ def render_dj_set(
             "num_transitions": metadata["num_transitions"],
             "stem_transitions_used": metadata["stem_transitions_used"],
         }
-        
-        # Upload cue sheet
-        cue_sheet_path = output_path.replace(".mp3", "_cuesheet.json")
-        with open(cue_sheet_path, "w") as f:
-            import json
-            json.dump(cue_sheet, f, indent=2)
-        
-        cue_sheet_key = f"dj-renders/{user_id}/{plan_id}/cuesheet.json"
-        cue_sheet_url = upload_to_s3.remote(cue_sheet_path, cue_sheet_key, "application/json")
-        
-        print(f"[Render] Uploaded cue sheet: {cue_sheet_url}")
-        
-        # Prepare result
-        result = {
+        with open(cue_sheet_path, "w") as fh:
+            json.dump(cue_sheet, fh, indent=2)
+
+        cue_key = f"dj-renders/{user_id}/{plan_id}/cuesheet.json"
+        cue_url = _s3_upload(cue_sheet_path, cue_key, "application/json")
+
+        result: Dict[str, Any] = {
             "plan_id": plan_id,
             "mix_url": mix_url,
-            "cue_sheet_url": cue_sheet_url,
+            "mix_key": mix_key,
+            "cue_sheet_url": cue_url,
+            "cue_sheet_key": cue_key,
             "total_duration": metadata["total_duration"],
             "num_transitions": metadata["num_transitions"],
             "stem_transitions_used": metadata["stem_transitions_used"],
         }
-        
-        # Send webhook to backend
-        send_webhook.remote("/api/dj-studio/render-complete", result)
-        
-        print(f"[Render] Complete for plan {plan_id}")
-        
+
+        if webhook_url:
+            _send_webhook(webhook_url, result)
+
+        print(f"[Render] DONE  plan={plan_id}  duration={metadata['total_duration']:.1f}s")
         return result
-        
+
     finally:
-        # Cleanup
         if os.path.exists(output_path):
             os.unlink(output_path)
         if os.path.exists(cue_sheet_path):
@@ -507,9 +772,8 @@ def render_dj_set(
 
 
 # ============================================================================
-# DEPLOYMENT
+# DEPLOYMENT ENTRYPOINT
 # ============================================================================
 
 if __name__ == "__main__":
-    print("AURA-X DJ Studio Modal Backend")
-    print("Deploy with: modal deploy modal_app.py")
+    print("AURA-X Modal Backend — deploy with: modal deploy modal_backend/modal_app.py")

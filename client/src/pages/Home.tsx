@@ -8,7 +8,6 @@ import Layout from '@/components/Layout';
 import PianoRoll from '@/components/daw/PianoRoll';
 import Mixer from '@/components/daw/Mixer';
 import TimelineV2 from '@/components/daw/TimelineV2';
-import TimelineWithStore from '@/components/daw/TimelineWithStore';
 import { useDAWStore } from '@/stores/dawStore';
 import { 
   ResizableHandle, 
@@ -51,13 +50,14 @@ export default function Home() {
     setPlayheadPosition,
   } = useDAWStore();
   
-  const { 
-    isPlaying, 
-    togglePlay, 
-    stop, 
-    tempo, 
+  const {
+    isPlaying,
+    togglePlay,
+    stop,
+    tempo,
     setTempo: setEngineTempo,
-    currentPosition 
+    currentPosition,
+    seek,
   } = useAudioEngine();
   
   const [activeView, setActiveView] = useState('timeline');
@@ -322,7 +322,12 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex-1 overflow-hidden">
-                <TimelineWithStore />
+                <TimelineV2
+                  projectId={currentProjectId ?? 1}
+                  isPlaying={isPlaying}
+                  currentTime={currentPosition}
+                  onTimeChange={seek}
+                />
               </div>
             </div>
           </ResizablePanel>
