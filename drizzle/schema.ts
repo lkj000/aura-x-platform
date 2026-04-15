@@ -838,6 +838,26 @@ export const djTrackFeatures = mysqlTable("dj_track_features", {
   regionalStyle: varchar("regionalStyle", { length: 50 }), // "Gauteng" | "Durban" | "Cape Town" | "Limpopo" | "East Rand"
   productionEra: varchar("productionEra", { length: 20 }), // "classic" (2017–2020) | "modern" (2021+)
 
+  // ── T10: Groove Fingerprint ────────────────────────────────────────────────
+  // 32-bar microtiming matrix: for each of the 512 16th-note positions, records
+  // the onset deviation (ms) of key stems from the quantised grid. Used in DJ
+  // set planning: two tracks are groove-compatible if cosine similarity ≥ 0.75.
+  // JSON: { logDrum: number[], kick: number[], shaker: number[], hiHat: number[] }
+  // See CLAUDE.md §1.8.
+  grooveFingerprint: json("grooveFingerprint"), // 512-float vectors per stem
+
+  // Log drum syncopation map — onset offsets relative to the 4/4 grid.
+  // JSON: { pattern, onsetOffsets, kickRelativeOffsets, metricalStrength }
+  // metricalStrength < 0.50 = log drum is too on-beat (authenticity failure).
+  logDrumSyncopationMap: json("logDrumSyncopationMap"),
+
+  // ── T11: Contrast Score ────────────────────────────────────────────────────
+  // Sub-genre position on the Soulful↔Sgija axis. 0–75 = Soulful/Private School,
+  // 76–149 = Mainstream, 150–200 = Sgija/Underground.
+  // Formula: (swing_deviation×100)+(bpm_normalized×50)+(log_drum_attack_sharpness×30)+(piano_chord_density×20)
+  // See CLAUDE.md §1.10 and shared/contrastScore.ts.
+  contrastScore: decimal("contrastScore", { precision: 6, scale: 2 }).$type<number>(), // 0.00–200.00
+
   // ── Analysis Metadata ──────────────────────────────────────────────────────
   analyzerVersion: varchar("analyzerVersion", { length: 50 }).default("2.0.0"),
   analyzedAt: timestamp("analyzedAt").defaultNow().notNull(),

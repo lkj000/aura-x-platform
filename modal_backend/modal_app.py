@@ -229,6 +229,9 @@ def analyze_track(body: Dict[str, Any]) -> Dict[str, Any]:
         compute_cultural_score,
         infer_regional_style,
         infer_production_era,
+        compute_groove_fingerprint,
+        compute_log_drum_syncopation_map,
+        compute_contrast_score,
     )
 
     track_id: int = body["track_id"]
@@ -333,6 +336,26 @@ def analyze_track(body: Dict[str, Any]) -> Dict[str, Any]:
             swing_percent=swing_pct,
         )
 
+        # ── T10: Groove fingerprint + log drum syncopation map ────────────────
+        groove = compute_groove_fingerprint(audio, beats_np, float(bpm))
+        log_drum_syncopation = compute_log_drum_syncopation_map(
+            audio, beats_np, float(bpm)
+        )
+
+        # ── T11: Contrast Score ───────────────────────────────────────────────
+        # log_drum_attack_centroid_hz: use log drum freq_hz as a proxy for the
+        # attack transient centroid when full timbral analysis is not available.
+        # Defaults to 300 Hz (mid-range wood sound) when not detected.
+        log_drum_centroid = float(log_drum_info.get("freq_hz") or 300.0)
+        # avg_piano_chord_note_count: derive from piano_complexity (0–1 → 1–7 notes)
+        avg_note_count = 1.0 + piano_complexity * 6.0
+        contrast = compute_contrast_score(
+            swing_percent=swing_pct,
+            bpm=float(bpm),
+            log_drum_attack_centroid_hz=log_drum_centroid,
+            avg_piano_chord_note_count=avg_note_count,
+        )
+
         # Beat-grid (compact: beat positions for client waveform display)
         beatgrid = [float(b) for b in beats[:500]]  # cap at 500 markers
 
@@ -366,6 +389,12 @@ def analyze_track(body: Dict[str, Any]) -> Dict[str, Any]:
             "detected_languages": lang_info["detected_languages"],
             "regional_style": regional_style,
             "production_era": production_era,
+            # T10: Groove fingerprint
+            "groove_fingerprint": groove,
+            "log_drum_syncopation_map": log_drum_syncopation,
+            # T11: Contrast Score
+            "contrast_score": contrast["score"],
+            "contrast_score_label": contrast["label"],
         }
 
         if webhook_url:

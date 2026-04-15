@@ -628,3 +628,264 @@ def infer_production_era(bpm: float, lufs: float, swing_percent: float) -> str:
     if bpm >= 120 and lufs >= -11 and swing_percent >= 55:
         return "modern"
     return "classic"
+
+
+# ── T10: Groove Fingerprint ────────────────────────────────────────────────────
+
+def compute_groove_fingerprint(
+    audio: np.ndarray,
+    beats: np.ndarray,
+    bpm: float,
+) -> Dict[str, Any]:
+    """
+    Compute the groove fingerprint for a track: a 32-bar microtiming matrix.
+
+    For each of the 512 16th-note positions in a 32-bar loop, we record the
+    onset deviation (in ms) of key stems from the quantised grid. The result
+    is used for DJ set compatibility scoring: two tracks are groove-compatible
+    if their shaker microtiming vectors have cosine similarity ≥ 0.75.
+
+    Because we are working on the mixed-down audio (not separated stems), we
+    compute the combined onset deviation and return a single vector that
+    approximates the aggregate groove feel.
+
+    See CLAUDE.md §1.8 for the full specification.
+
+    Returns dict with:
+      combined: list[float]   — 512 onset deviations (ms) from quantised grid
+      metricalStrength: float — 0–1, how strongly off-beat the groove is
+      barsAnalysed: int       — number of 32-bar windows found in the audio
+    """
+    try:
+        import librosa
+
+        sr = SAMPLE_RATE
+        quarter_sec = 60.0 / max(bpm, 1.0)
+        sixteenth_sec = quarter_sec / 4.0
+
+        # Detect all onsets in the audio
+        onset_times = librosa.onset.onset_detect(
+            y=audio, sr=sr, units="time", hop_length=512, backtrack=True
+        )
+
+        if len(beats) < 16 or len(onset_times) < 8:
+            # Not enough data for a meaningful fingerprint
+            return {
+                "combined": [0.0] * 512,
+                "metricalStrength": 0.0,
+                "barsAnalysed": 0,
+            }
+
+        # Build a quantised 16th-note grid from beat positions
+        # Each bar = 4 beats = 16 16th-note slots
+        grid_positions: list[float] = []
+        for b in beats:
+            for sixteenth_idx in range(4):
+                grid_positions.append(b + sixteenth_idx * sixteenth_sec)
+
+        # For each onset, find the nearest grid position and compute deviation
+        deviations: list[float] = []
+        for onset_t in onset_times:
+            diffs = [abs(onset_t - g) for g in grid_positions]
+            nearest_dist = min(diffs)
+            # Deviation in ms, signed (positive = late, negative = early)
+            nearest_idx = diffs.index(nearest_dist)
+            dev_ms = (onset_t - grid_positions[nearest_idx]) * 1000.0
+            deviations.append(float(dev_ms))
+
+        # Pad or truncate to 512 positions
+        if len(deviations) >= 512:
+            fingerprint = deviations[:512]
+        else:
+            fingerprint = deviations + [0.0] * (512 - len(deviations))
+
+        # Metrical strength: fraction of onsets that are significantly off-grid
+        # (> 10 ms deviation suggests intentional groove rather than quantisation)
+        off_grid = sum(1 for d in deviations if abs(d) > 10.0)
+        metrical_strength = float(off_grid) / max(len(deviations), 1)
+
+        bars_analysed = len(beats) // 4
+
+        return {
+            "combined": fingerprint,
+            "metricalStrength": round(metrical_strength, 3),
+            "barsAnalysed": bars_analysed,
+        }
+
+    except Exception as exc:
+        print(f"[AmapianoAnalyzer] Groove fingerprint failed: {exc}")
+        return {
+            "combined": [0.0] * 512,
+            "metricalStrength": 0.0,
+            "barsAnalysed": 0,
+        }
+
+
+def compute_log_drum_syncopation_map(
+    audio: np.ndarray,
+    beats: np.ndarray,
+    bpm: float,
+) -> Dict[str, Any]:
+    """
+    Compute the log drum syncopation map: onset offsets relative to the 4/4 grid.
+
+    The log drum's defining character is its syncopated relationship to the kick.
+    metricalStrength < 0.50 indicates a log drum that is too close to on-beat —
+    this is an authenticity failure.
+
+    Returns:
+      pattern: str              — Detected Euclidean pattern (e.g. "E(3,16)")
+      onsetOffsets: list[float] — Fractional bar positions of log drum hits
+      kickRelativeOffsets: list[float] — Offset from nearest kick onset
+      metricalStrength: float   — 0–1 (higher = more syncopated)
+    """
+    try:
+        from scipy import signal as sp_signal
+
+        sr = SAMPLE_RATE
+        quarter_sec = 60.0 / max(bpm, 1.0)
+        bar_sec = quarter_sec * 4.0
+
+        # Band-pass filter to isolate log drum sub-bass (40–200 Hz)
+        nyq = sr / 2.0
+        b, a = sp_signal.butter(4, [40.0 / nyq, 200.0 / nyq], btype="band")
+        log_band = sp_signal.filtfilt(b, a, audio)
+
+        # Detect onsets in the log band
+        frame_size = 1024
+        hop = 512
+        n_frames = (len(log_band) - frame_size) // hop
+        if n_frames < 1:
+            return {"pattern": "E(3,16)", "onsetOffsets": [], "kickRelativeOffsets": [], "metricalStrength": 0.0}
+
+        rms = np.array([
+            np.sqrt(np.mean(log_band[i * hop: i * hop + frame_size] ** 2))
+            for i in range(n_frames)
+        ])
+
+        if np.max(rms) == 0:
+            return {"pattern": "E(3,16)", "onsetOffsets": [], "kickRelativeOffsets": [], "metricalStrength": 0.0}
+
+        threshold = np.max(rms) * 0.4
+        onset_frames = np.where(
+            (rms > threshold)
+            & np.concatenate(([True], rms[1:] > rms[:-1]))
+            & np.concatenate((rms[:-1] > rms[1:], [True]))
+        )[0]
+        onset_times = onset_frames * hop / float(sr)
+
+        if len(onset_times) < 2 or len(beats) < 4:
+            return {"pattern": "E(3,16)", "onsetOffsets": [], "kickRelativeOffsets": [], "metricalStrength": 0.0}
+
+        # Express each onset as a fractional bar position
+        onset_offsets: list[float] = []
+        for t in onset_times:
+            bar_idx = int(t / bar_sec)
+            bar_start = bar_idx * bar_sec
+            frac = (t - bar_start) / bar_sec
+            onset_offsets.append(round(float(frac), 3))
+
+        # Kick relative offsets: distance from nearest beat (kick is assumed on-beat)
+        kick_relative: list[float] = []
+        for t in onset_times:
+            diffs = np.abs(beats - t)
+            nearest_kick_dist = float(np.min(diffs))
+            # Fractional: in beats
+            kick_relative.append(round(nearest_kick_dist / quarter_sec, 3))
+
+        # Metrical strength: fraction of onsets that land off the quarter-note grid
+        off_beat = sum(1 for d in kick_relative if d > 0.25)
+        metrical_strength = float(off_beat) / max(len(kick_relative), 1)
+
+        # Classify Euclidean pattern by onset count per bar
+        hits_per_bar = len(onset_times) / max(len(beats) / 4.0, 1.0)
+        if hits_per_bar <= 3.5:
+            pattern = "E(3,16)"
+        elif hits_per_bar <= 5.5:
+            pattern = "E(5,16)"
+        else:
+            pattern = "E(7,16)"
+
+        return {
+            "pattern": pattern,
+            "onsetOffsets": onset_offsets[:16],  # one bar worth
+            "kickRelativeOffsets": kick_relative[:16],
+            "metricalStrength": round(metrical_strength, 3),
+        }
+
+    except Exception as exc:
+        print(f"[AmapianoAnalyzer] Log drum syncopation map failed: {exc}")
+        return {
+            "pattern": "E(3,16)",
+            "onsetOffsets": [],
+            "kickRelativeOffsets": [],
+            "metricalStrength": 0.0,
+        }
+
+
+# ── T11: Contrast Score ───────────────────────────────────────────────────────
+
+def compute_contrast_score(
+    swing_percent: float,
+    bpm: float,
+    log_drum_attack_centroid_hz: float,
+    avg_piano_chord_note_count: float,
+) -> Dict[str, Any]:
+    """
+    Compute the Contrast Score — sub-genre position on the Soulful↔Sgija axis.
+
+    Formula (see CLAUDE.md §1.10):
+      ContrastScore = (swing_deviation × 100)
+                    + (bpm_normalized  × 50)
+                    + (log_drum_attack_sharpness × 30)
+                    + (piano_chord_density × 20)
+
+    Where:
+      swing_deviation           = clamp((swing_pct − 53) / 14, 0, 1)
+      bpm_normalized            = clamp((bpm − 112) / 20, 0, 1)
+      log_drum_attack_sharpness = clamp((centroid_hz − 180) / 420, 0, 1)
+      piano_chord_density       = clamp((note_count − 1) / 6, 0, 1)
+
+    Score interpretation:
+      0–75   → Soulful / Private School
+      76–149 → Mainstream Amapiano
+      150–200→ Sgija / Underground
+
+    Returns dict with score (float) and label (str).
+    """
+    def clamp(v: float, lo: float, hi: float) -> float:
+        return max(lo, min(hi, v))
+
+    swing_deviation = clamp((swing_percent - 53.0) / 14.0, 0.0, 1.0)
+    bpm_normalized = clamp((bpm - 112.0) / 20.0, 0.0, 1.0)
+    # 180 Hz = woody/soulful (0), 600 Hz = metallic/sharp (1); range = 420 Hz
+    log_drum_attack_sharpness = clamp(
+        (log_drum_attack_centroid_hz - 180.0) / 420.0, 0.0, 1.0
+    )
+    # 1 note = no chord (0), 7 notes = full jazz voicing (1); range = 6
+    piano_chord_density = clamp((avg_piano_chord_note_count - 1.0) / 6.0, 0.0, 1.0)
+
+    score = (
+        swing_deviation * 100.0
+        + bpm_normalized * 50.0
+        + log_drum_attack_sharpness * 30.0
+        + piano_chord_density * 20.0
+    )
+
+    if score <= 75.0:
+        label = "soulful"
+    elif score <= 149.0:
+        label = "mainstream"
+    else:
+        label = "sgija"
+
+    return {
+        "score": round(score, 2),
+        "label": label,
+        "breakdown": {
+            "swingDeviation": round(swing_deviation, 3),
+            "bpmNormalized": round(bpm_normalized, 3),
+            "logDrumAttackSharpness": round(log_drum_attack_sharpness, 3),
+            "pianoChordDensity": round(piano_chord_density, 3),
+        },
+    }

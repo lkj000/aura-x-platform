@@ -74,6 +74,22 @@ export const djStudioWebhooksRouter = router({
         regional_style: z.string().optional(),
         production_era: z.string().optional(),
         analyzer_version: z.string().optional(),
+        // T10: Groove fingerprint (32-bar microtiming matrix)
+        groove_fingerprint: z.object({
+          combined: z.array(z.number()),
+          metricalStrength: z.number(),
+          barsAnalysed: z.number(),
+        }).optional(),
+        // T10: Log drum syncopation map
+        log_drum_syncopation_map: z.object({
+          pattern: z.string(),
+          onsetOffsets: z.array(z.number()),
+          kickRelativeOffsets: z.array(z.number()),
+          metricalStrength: z.number(),
+        }).optional(),
+        // T11: Contrast Score (0–200)
+        contrast_score: z.number().optional(),
+        contrast_score_label: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -115,6 +131,15 @@ export const djStudioWebhooksRouter = router({
         regionalStyle: input.regional_style,
         productionEra: input.production_era,
         analyzerVersion: input.analyzer_version ?? "2.0.0",
+        // T10: Groove fingerprint + log drum syncopation map
+        grooveFingerprint: input.groove_fingerprint
+          ? JSON.stringify(input.groove_fingerprint)
+          : undefined,
+        logDrumSyncopationMap: input.log_drum_syncopation_map
+          ? JSON.stringify(input.log_drum_syncopation_map)
+          : undefined,
+        // T11: Contrast Score
+        contrastScore: input.contrast_score,
       });
 
       // Update track duration (was set to 0 on upload)
