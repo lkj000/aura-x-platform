@@ -100,7 +100,10 @@ export async function generateMusic(params: MusicGenerationParams, generationId?
     // Construct webhook URL for Modal to call when generation completes
     // Use public dev server URL so Modal can reach the webhook endpoint
     // Get the current dev server URL from environment variable
-    const publicUrl = process.env.PUBLIC_URL || process.env.VITE_APP_URL || 'https://3000-i39r7g9anx75y236scyh6-4cb35ac2.us2.manus.computer';
+    const publicUrl = process.env.PUBLIC_URL
+      || process.env.VITE_APP_URL
+      || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null)
+      || 'http://localhost:3000';
     const webhookUrl = generationId ? `${publicUrl}/api/modal/webhook` : undefined;
     
     console.log('[ModalClient] Webhook URL:', webhookUrl);
