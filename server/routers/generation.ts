@@ -511,9 +511,25 @@ export const aiStudioRouter = router({
 
         await db.updateGeneration(generation.id, { status: "processing" });
         return { generationId: generation.id, workflowId: workflowHandle.workflowId, status: "processing" };
-      } catch (error) {
-        await db.updateGeneration(generation.id, { status: "failed", errorMessage: error instanceof Error ? error.message : "Unknown error" });
-        throw error;
+      } catch (temporalError) {
+        // T3 fallback: direct Modal call when Temporal is unavailable (e.g. Railway without Temporal)
+        console.warn("[Music Generation] Temporal unavailable, falling back to direct Modal:", temporalError);
+        try {
+          const modalResult = await modalClient.generateMusic({
+            prompt: input.prompt,
+            duration: input.duration || 30,
+            temperature: 1.0,
+          });
+          if (modalResult.audioUrl) {
+            await db.updateGeneration(generation.id, { status: "completed", resultUrl: modalResult.audioUrl });
+          } else {
+            await db.updateGeneration(generation.id, { status: "processing" });
+          }
+          return { generationId: generation.id, workflowId: null, status: "processing" as const };
+        } catch (modalError) {
+          await db.updateGeneration(generation.id, { status: "failed", errorMessage: modalError instanceof Error ? modalError.message : "Unknown error" });
+          throw modalError;
+        }
       }
     }),
 
