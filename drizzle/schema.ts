@@ -97,6 +97,7 @@ export const generations = mysqlTable("generations", {
   mood: varchar("mood", { length: 100 }),
   vocalStyle: varchar("vocalStyle", { length: 100 }), // "male", "female", "none"
   isFavorite: boolean("isFavorite").default(false).notNull(),
+  userRating: int("userRating"), // 1–5 star rating from producer; ≥4 triggers gold standard write (T7)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 });

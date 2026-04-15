@@ -1,12 +1,17 @@
 /**
  * db/generations.ts — Generation and GenerationHistory repositories
+ *
+ * Also owns gold_standard_generations writes — the T7 feedback loop kernel.
+ * When a producer rates a generation ≥ 4/5, upsertGoldStandard() is called
+ * and the row that makes the OS loop real is written.
  */
 import { eq, and, desc } from "drizzle-orm";
 import { getDb } from "./core";
 import {
-  generations, generationHistory,
+  generations, generationHistory, goldStandardGenerations,
   type Generation, type InsertGeneration,
   type GenerationHistory, type InsertGenerationHistory,
+  type GoldStandardGeneration,
 } from "../../drizzle/schema";
 
 // ── Generations ───────────────────────────────────────────────────────────────
@@ -105,4 +110,107 @@ export async function deleteGenerationHistory(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(generationHistory).where(eq(generationHistory.id, id));
+}
+
+// ── Gold Standard (T7 feedback loop kernel) ───────────────────────────────────
+
+/**
+ * Store a 1–5 star rating on the generation record.
+ * Callers must separately call upsertGoldStandard() when rating >= 4.
+ */
+export async function setGenerationRating(generationId: number, rating: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(generations).set({ userRating: rating }).where(eq(generations.id, generationId));
+}
+
+/**
+ * Upsert a gold standard record for a generation.
+ *
+ * On first call: INSERT with feedbackCount=1.
+ * On subsequent calls: UPDATE with running weighted average.
+ *
+ * This is the write that makes the OS feedback loop real. Called only when
+ * a producer rates a generation >= 4/5. The Phase 0 exit criterion is
+ * that this table has at least one row after the first test generation.
+ */
+export async function upsertGoldStandard(params: {
+  generationId: number;
+  culturalRating: number;
+  swingRating: number;
+  linguisticRating?: number;
+  productionRating?: number;
+}): Promise<GoldStandardGeneration> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await db
+    .select()
+    .from(goldStandardGenerations)
+    .where(eq(goldStandardGenerations.generationId, params.generationId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    const prev = existing[0]!;
+    const n = prev.feedbackCount;
+    // Weighted running average: newAvg = (prevAvg * n + newVal) / (n + 1)
+    const avg = (prev: string | number, next: number) =>
+      ((Number(prev) * n + next) / (n + 1)).toFixed(2);
+
+    await db
+      .update(goldStandardGenerations)
+      .set({
+        avgCulturalRating: avg(prev.avgCulturalRating, params.culturalRating) as any,
+        avgSwingRating: avg(prev.avgSwingRating, params.swingRating) as any,
+        avgLinguisticRating: params.linguisticRating != null
+          ? (avg(prev.avgLinguisticRating ?? params.linguisticRating, params.linguisticRating) as any)
+          : prev.avgLinguisticRating,
+        avgProductionRating: params.productionRating != null
+          ? (avg(prev.avgProductionRating ?? params.productionRating, params.productionRating) as any)
+          : prev.avgProductionRating,
+        feedbackCount: n + 1,
+      })
+      .where(eq(goldStandardGenerations.id, prev.id));
+
+    const updated = await db
+      .select()
+      .from(goldStandardGenerations)
+      .where(eq(goldStandardGenerations.id, prev.id))
+      .limit(1);
+    return updated[0]!;
+  }
+
+  const result = await db.insert(goldStandardGenerations).values({
+    generationId: params.generationId,
+    avgCulturalRating: params.culturalRating.toFixed(2) as any,
+    avgSwingRating: params.swingRating.toFixed(2) as any,
+    avgLinguisticRating: params.linguisticRating?.toFixed(2) as any,
+    avgProductionRating: params.productionRating?.toFixed(2) as any,
+    feedbackCount: 1,
+    favoriteCount: 0,
+    isGoldStandard: true,
+  });
+
+  const inserted = await db
+    .select()
+    .from(goldStandardGenerations)
+    .where(eq(goldStandardGenerations.id, Number(result[0].insertId)))
+    .limit(1);
+  return inserted[0]!;
+}
+
+/**
+ * Retrieve the gold standard record for a generation, if it exists.
+ */
+export async function getGoldStandardByGenerationId(
+  generationId: number
+): Promise<GoldStandardGeneration | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(goldStandardGenerations)
+    .where(eq(goldStandardGenerations.generationId, generationId))
+    .limit(1);
+  return result[0];
 }

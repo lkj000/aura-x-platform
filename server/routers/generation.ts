@@ -213,6 +213,24 @@ export const generateRouter = router({
         processingTime: input.processingTime,
         completedAt: input.status === "completed" ? new Date() : undefined,
       });
+
+      // T7: Auto-trigger cultural scoring when Modal completes without a score.
+      // Fire-and-forget — webhook must respond immediately. Failures are logged,
+      // not surfaced, since the generation is already stored.
+      if (input.status === "completed" && input.audioUrl && !input.culturalScore) {
+        db.getGenerationById(input.generationId).then(async (gen) => {
+          if (!gen) return;
+          try {
+            const { scoreCulturalAuthenticity } = await import("../culturalScoring");
+            const score = await scoreCulturalAuthenticity(input.audioUrl!, gen.prompt, {});
+            await db.updateGeneration(input.generationId, { culturalScore: score.overall.toString() });
+            console.log("[T7] Auto-scored generation", input.generationId, "→", score.overall);
+          } catch (err) {
+            console.error("[T7] Auto-scoring failed for generation", input.generationId, err);
+          }
+        }).catch(err => console.error("[T7] getGenerationById failed:", err));
+      }
+
       return { success: true };
     }),
 
@@ -565,6 +583,62 @@ export const aiStudioRouter = router({
       }));
 
       return { success: true, projectId: activeProject.id, tracksCreated: createdTracks.length, tracks: createdTracks };
+    }),
+
+  /**
+   * rateGeneration — T7 feedback loop entry point.
+   *
+   * A 1–5 star rating from the producer. When rating ≥ 4:
+   *   1. Scores the generation culturally if not already scored.
+   *   2. Writes a row to gold_standard_generations.
+   *
+   * This is the write that activates the OS feedback loop. The Phase 0
+   * exit criterion requires at least one row in gold_standard_generations
+   * after the first test generation is rated.
+   */
+  rateGeneration: protectedProcedure
+    .input(z.object({
+      generationId: z.number(),
+      rating: z.number().int().min(1).max(5),
+      swingRating: z.number().int().min(1).max(5).optional(),
+      linguisticRating: z.number().int().min(1).max(5).optional(),
+      productionRating: z.number().int().min(1).max(5).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const gen = await db.getGenerationById(input.generationId);
+      if (!gen || gen.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Generation not found" });
+      }
+
+      await db.setGenerationRating(input.generationId, input.rating);
+
+      if (input.rating >= 4) {
+        // Ensure cultural score exists; auto-score now if not already computed.
+        if (!gen.culturalScore && gen.resultUrl) {
+          try {
+            const { scoreCulturalAuthenticity } = await import("../culturalScoring");
+            const score = await scoreCulturalAuthenticity(gen.resultUrl, gen.prompt, {});
+            await db.updateGeneration(input.generationId, { culturalScore: score.overall.toString() });
+          } catch (err) {
+            console.error("[T7] Auto-scoring failed during rating:", err);
+            // Non-fatal: gold standard still written without score; score will arrive via webhook
+          }
+        }
+
+        // Write the gold standard row — this is the OS kernel activation.
+        const goldStandard = await db.upsertGoldStandard({
+          generationId: input.generationId,
+          culturalRating: input.rating,
+          swingRating: input.swingRating ?? input.rating,
+          linguisticRating: input.linguisticRating,
+          productionRating: input.productionRating,
+        });
+
+        console.log("[T7] Gold standard written for generation", input.generationId, "id:", goldStandard.id);
+        return { success: true, isGoldStandard: true, goldStandardId: goldStandard.id };
+      }
+
+      return { success: true, isGoldStandard: false };
     }),
 
   checkJobStatus: protectedProcedure
