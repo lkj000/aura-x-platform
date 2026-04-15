@@ -345,7 +345,9 @@ export const generateRouter = router({
       if (!generation) throw new TRPCError({ code: "NOT_FOUND", message: "Generation not found" });
       if (generation.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
 
-      if (generation.status === "pending" || generation.status === "processing") {
+      // Guard: webhook may have completed the generation concurrently.
+      // If resultUrl is already set the audio landed — do not overwrite to failed.
+      if ((generation.status === "pending" || generation.status === "processing") && !generation.resultUrl) {
         await db.updateGeneration(input.generationId, { status: "failed", errorMessage: input.errorMessage });
         console.log("[Fail Generation] Auto-failed generation:", input.generationId);
         return { success: true, generationId: input.generationId };

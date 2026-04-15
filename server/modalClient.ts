@@ -146,7 +146,14 @@ export async function generateMusic(params: MusicGenerationParams, generationId?
       };
     }
     
-    return response.data;
+    // Modal webhook-mode: response may not include jobId (async path).
+    // Synthesize one so callers can poll and workflowId is never undefined.
+    const data = response.data ?? {};
+    return {
+      ...data,
+      jobId: data.jobId ?? (generationId ? `modal-${generationId}` : `modal-${Date.now()}`),
+      status: data.status ?? 'processing',
+    };
   } catch (error) {
     console.error('[ModalClient] Music generation failed:', error);
     throw new Error(`Music generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
