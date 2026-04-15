@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { trpc } from '@/lib/trpc';
-import { Loader2, Sparkles, Music, Mic, Wand2, Play, Pause, Download, Heart, Share2, MoreVertical } from 'lucide-react';
+import { Loader2, Sparkles, Music, Mic, Wand2, Play, Pause, Download, Heart, Share2, MoreVertical, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -135,8 +135,8 @@ export default function AIStudio() {
   const [title, setTitle] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>(['Amapiano']);
   const [selectedMood, setSelectedMood] = useState('Energetic');
-  const [bpm, setBpm] = useState([112]);
-  const [selectedKey, setSelectedKey] = useState('F');
+  const [bpm, setBpm] = useState([120]);
+  const [selectedKey, setSelectedKey] = useState('A min');
   const [vocalStyle, setVocalStyle] = useState('male');
   const [selectedLanguage, setSelectedLanguage] = useState('zulu');
   const [selectedRegion, setSelectedRegion] = useState('gauteng_jhb');
@@ -147,11 +147,34 @@ export default function AIStudio() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
+  const [completedGenerationId, setCompletedGenerationId] = useState<number | null>(null);
+  const [completedGeneration, setCompletedGeneration] = useState<{
+    status: string;
+    audioUrl?: string;
+    culturalScore?: number;
+    culturalScoreBreakdown?: {
+      overall: number;
+      breakdown: {
+        logDrumPresence: number;
+        pianoAuthenticity: number;
+        rhythmicSwing: number;
+        languageAuthenticity: number;
+        energyArc: number;
+        harmonicStructure: number;
+        timbreTexture: number;
+        productionEra: number;
+      };
+      feedback: string;
+      recommendations: string[];
+    };
+  } | null>(null);
+  const [userRating, setUserRating] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
 
   const generateMusic = trpc.aiStudio.generateMusic.useMutation();
   const generateLyrics = trpc.aiStudio.generateLyrics.useMutation();
+  const rateGeneration = trpc.aiStudio.rateGeneration.useMutation();
   
   // Fetch user queue stats
   const { data: userStats } = trpc.queue.getUserStats.useQuery();
@@ -183,13 +206,21 @@ export default function AIStudio() {
   useEffect(() => {
     if (checkJobStatus.data) {
       const status = checkJobStatus.data.status;
-      
+
       if (status === 'completed') {
         setIsGenerating(false);
+        setCompletedGenerationId(activeGenerationId);
         setActiveJobId(null);
         setActiveGenerationId(null);
         setProgress(100);
-        toast.success('Music generated successfully!');
+        setCompletedGeneration(checkJobStatus.data as typeof completedGeneration);
+        setUserRating(null);
+        const score = (checkJobStatus.data as any).culturalScore;
+        if (score != null) {
+          toast.success(`Track generated! Cultural score: ${Math.round(score)}/100`);
+        } else {
+          toast.success('Music generated successfully!');
+        }
       } else if (status === 'failed') {
         setIsGenerating(false);
         setActiveJobId(null);
@@ -705,7 +736,7 @@ export default function AIStudio() {
           </TabsContent>
         </Tabs>
 
-        {/* Generation Result Placeholder */}
+        {/* Generation in progress */}
         {isGenerating && (
           <Card>
             <CardContent className="py-12">
@@ -714,10 +745,138 @@ export default function AIStudio() {
                 <div className="text-center">
                   <h3 className="text-lg font-semibold">Generating your track...</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    This usually takes 30-60 seconds
+                    This usually takes 30–60 seconds
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Cultural Authenticity Score Card — shown after generation completes */}
+        {completedGeneration && !isGenerating && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-base">Cultural Authenticity Score</CardTitle>
+                  <CardDescription>8-dimension Amapiano analysis</CardDescription>
+                </div>
+                {completedGeneration.culturalScore != null && (
+                  <div className={`flex items-center justify-center h-14 w-14 rounded-full border-4 text-lg font-bold ${
+                    completedGeneration.culturalScore >= 82
+                      ? 'border-green-500 text-green-600'
+                      : completedGeneration.culturalScore >= 60
+                      ? 'border-amber-400 text-amber-600'
+                      : 'border-red-400 text-red-600'
+                  }`}>
+                    {Math.round(completedGeneration.culturalScore)}
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {completedGeneration.culturalScoreBreakdown?.breakdown ? (
+                <>
+                  {/* 8-dimension bars */}
+                  {(
+                    [
+                      { key: 'logDrumPresence',      label: 'Log Drum Presence',    max: 20 },
+                      { key: 'pianoAuthenticity',    label: 'Piano Authenticity',   max: 20 },
+                      { key: 'rhythmicSwing',        label: 'Rhythmic Swing',       max: 15 },
+                      { key: 'languageAuthenticity', label: 'Language Authenticity',max: 15 },
+                      { key: 'energyArc',            label: 'Energy Arc',           max: 10 },
+                      { key: 'harmonicStructure',    label: 'Harmonic Structure',   max: 10 },
+                      { key: 'timbreTexture',        label: 'Timbre & Texture',     max:  5 },
+                      { key: 'productionEra',        label: 'Production Era',       max:  5 },
+                    ] as const
+                  ).map(({ key, label, max }) => {
+                    const raw = completedGeneration.culturalScoreBreakdown!.breakdown[key] ?? 0;
+                    const pct = Math.round((raw / max) * 100);
+                    return (
+                      <div key={key} className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="font-medium tabular-nums">{raw}/{max}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              pct >= 75 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Feedback */}
+                  {completedGeneration.culturalScoreBreakdown.feedback && (
+                    <p className="text-sm text-muted-foreground pt-1 border-t">
+                      {completedGeneration.culturalScoreBreakdown.feedback}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Scoring in progress…</p>
+              )}
+
+              {/* Audio playback */}
+              {completedGeneration.audioUrl && (
+                <div className="pt-2 border-t">
+                  <audio controls className="w-full h-8" src={completedGeneration.audioUrl} />
+                </div>
+              )}
+
+              {/* 1-5 star rating — closes the T7 feedback loop */}
+              {completedGenerationId && (
+                <div className="pt-3 border-t">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Rate this track to improve future Amapiano generations
+                  </p>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        disabled={userRating != null || rateGeneration.isPending}
+                        onClick={async () => {
+                          setUserRating(star);
+                          try {
+                            await rateGeneration.mutateAsync({
+                              generationId: completedGenerationId,
+                              rating: star,
+                            });
+                            toast.success(
+                              star >= 4
+                                ? 'Rated! This track will contribute to the gold standard corpus.'
+                                : 'Rating saved. Feedback will guide future generations.'
+                            );
+                          } catch {
+                            setUserRating(null);
+                            toast.error('Failed to save rating');
+                          }
+                        }}
+                        className="focus:outline-none disabled:opacity-50"
+                        aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                      >
+                        <Star
+                          className={`h-6 w-6 transition-colors ${
+                            userRating != null && star <= userRating
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'text-muted-foreground hover:text-amber-400'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    {userRating != null && (
+                      <span className="ml-2 text-xs text-muted-foreground self-center">
+                        {userRating >= 4 ? '⭐ Gold standard candidate' : 'Saved'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

@@ -81,6 +81,7 @@ export const generations = mysqlTable("generations", {
   status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
   resultUrl: text("resultUrl"), // S3 URL to generated audio
   culturalScore: decimal("culturalScore", { precision: 5, scale: 2 }), // 0.00 to 100.00
+  culturalScoreBreakdown: json("culturalScoreBreakdown"), // Full CulturalScore: {overall, breakdown{8 dims}, feedback, recommendations}
   processingTime: int("processingTime"), // Time in milliseconds
   errorMessage: text("errorMessage"),
   workflowId: varchar("workflowId", { length: 255 }), // Temporal workflow ID

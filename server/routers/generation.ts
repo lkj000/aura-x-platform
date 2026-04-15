@@ -644,14 +644,55 @@ export const aiStudioRouter = router({
   checkJobStatus: protectedProcedure
     .input(z.object({ jobId: z.string(), generationId: z.number() }))
     .query(async ({ ctx, input }) => {
-      const jobStatus = await modalClient.checkJobStatus(input.jobId);
+      const [jobStatus, gen] = await Promise.all([
+        modalClient.checkJobStatus(input.jobId),
+        db.getGenerationById(input.generationId),
+      ]);
 
       if (jobStatus.status === "completed" && "audioUrl" in jobStatus && jobStatus.audioUrl) {
-        await db.updateGeneration(input.generationId, { status: "completed", resultUrl: jobStatus.audioUrl, completedAt: new Date() });
+        if (!gen?.culturalScore) {
+          // First time hitting completed — score and store breakdown
+          const { scoreCulturalAuthenticity } = await import("../culturalScoring");
+          const score = await scoreCulturalAuthenticity(
+            jobStatus.audioUrl,
+            gen?.prompt ?? "",
+            gen?.parameters ?? {}
+          );
+          await db.updateGeneration(input.generationId, {
+            status: "completed",
+            resultUrl: jobStatus.audioUrl,
+            completedAt: new Date(),
+            culturalScore: score.overall.toString(),
+            culturalScoreBreakdown: score,
+          });
+          return {
+            status: "completed" as const,
+            audioUrl: jobStatus.audioUrl,
+            culturalScore: score.overall,
+            culturalScoreBreakdown: score,
+          };
+        }
+        // Already scored — ensure DB is updated but skip re-scoring
+        await db.updateGeneration(input.generationId, {
+          status: "completed",
+          resultUrl: jobStatus.audioUrl,
+          completedAt: new Date(),
+        });
       } else if (jobStatus.status === "failed") {
-        await db.updateGeneration(input.generationId, { status: "failed", errorMessage: jobStatus.error || "Generation failed" });
+        await db.updateGeneration(input.generationId, {
+          status: "failed",
+          errorMessage: ("error" in jobStatus ? jobStatus.error : undefined) || "Generation failed",
+        });
       }
 
-      return jobStatus;
+      // Return current state from DB (handles already-scored and non-completed cases)
+      const updated = await db.getGenerationById(input.generationId);
+      return {
+        status: updated?.status ?? jobStatus.status,
+        audioUrl: updated?.resultUrl ?? undefined,
+        culturalScore: updated?.culturalScore ? parseFloat(updated.culturalScore as string) : undefined,
+        culturalScoreBreakdown: updated?.culturalScoreBreakdown as import("../culturalScoring").CulturalScore | undefined,
+        error: updated?.errorMessage ?? undefined,
+      };
     }),
 });
