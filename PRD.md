@@ -420,6 +420,7 @@ At every work session, ask one question before starting: **Is the feedback loop 
 | **T10** | **Groove fingerprint not computed** | **Cross-layer data flow broken: analysis ↛ DJ Studio** | J4 |
 | **T11** | **Contrast Score not stored on analysis** | **Cross-layer data flow broken: analysis ↛ marketplace ↛ DJ adjacency** | J4, J9 |
 | T12 | Dorian mode probability not computed | Mode detection returns binary minor/major | J1, J9 |
+| T13 | `generate.autonomous` runs in tRPC request handler | Request timeout kills mid-loop; server restart loses all in-progress attempts; intermediate attempt state is not observable via WebSocket | J2 |
 
 Bold items are the OS activation sequence. All others are important but secondary.
 
@@ -464,6 +465,7 @@ Bold items are the OS activation sequence. All others are important but secondar
 ### Phase 2 — DJ Studio (Q3 2026)
 *Complete J4–J5*
 
+- T13: Refactor `generate.autonomous` to `AutonomousGenerationWorkflow` (Temporal) — each attempt becomes a `MusicGenerationWorkflow` child workflow so crash recovery, WebSocket progress events, and per-attempt observability work correctly
 - T10: Groove fingerprint computed and stored for all tracks
 - T11: Contrast Score stored and displayed
 - Set planning with energy arc, Camelot compatibility, groove fingerprint, Contrast Score (J4)

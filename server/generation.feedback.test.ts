@@ -251,7 +251,11 @@ describe("aiStudio.rateGeneration — auto-scores when culturalScore is null", (
     vi.mocked(db.getGenerationById).mockResolvedValue(makeGeneration({ culturalScore: null }) as any);
     vi.mocked(culturalScoring.scoreCulturalAuthenticity).mockResolvedValue({
       overall: 82,
-      breakdown: { rhythmicAuthenticity: 20, harmonicStructure: 20, productionQuality: 22, culturalElements: 20 },
+      breakdown: {
+        logDrumPresence: 17, pianoAuthenticity: 17, rhythmicSwing: 12,
+        languageAuthenticity: 12, energyArc: 9, harmonicStructure: 9,
+        timbreTexture: 4, productionEra: 2,
+      },
       feedback: "Authentic",
       recommendations: [],
     });
@@ -264,7 +268,10 @@ describe("aiStudio.rateGeneration — auto-scores when culturalScore is null", (
       "Late night Amapiano with log drum",
       {}
     );
-    expect(db.updateGeneration).toHaveBeenCalledWith(1, { culturalScore: "82" });
+    expect(db.updateGeneration).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ culturalScore: "82" })
+    );
   });
 
   it("does NOT call scoreCulturalAuthenticity when culturalScore already exists", async () => {

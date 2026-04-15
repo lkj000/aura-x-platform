@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { trpc } from '@/lib/trpc';
-import { Loader2, Sparkles, Music, Mic, Wand2, Play, Pause, Download, Heart, Share2, MoreVertical, Star } from 'lucide-react';
+import { Loader2, Sparkles, Music, Mic, Wand2, Play, Pause, Download, Heart, Share2, MoreVertical, Star, Zap, ChevronRight } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
 /**
@@ -128,6 +129,30 @@ const AI_STUDIO_TIPS: Tip[] = [
   },
 ];
 
+// ── J2: dimension helpers ─────────────────────────────────────────────────────
+
+const DIMENSION_MAX: Record<string, number> = {
+  logDrumPresence: 20, pianoAuthenticity: 20, rhythmicSwing: 15,
+  languageAuthenticity: 15, energyArc: 10, harmonicStructure: 10,
+  timbreTexture: 5, productionEra: 5,
+};
+
+const DIMENSION_LABEL: Record<string, string> = {
+  logDrumPresence: 'Log Drum', pianoAuthenticity: 'Piano',
+  rhythmicSwing: 'Swing', languageAuthenticity: 'Language',
+  energyArc: 'Energy Arc', harmonicStructure: 'Harmonic',
+  timbreTexture: 'Timbre', productionEra: 'Era',
+};
+
+function weakestDimension(breakdown: Record<string, number>): string {
+  return Object.entries(breakdown)
+    .sort(([ka, a], [kb, b]) =>
+      (a / (DIMENSION_MAX[ka] ?? 1)) - (b / (DIMENSION_MAX[kb] ?? 1))
+    )[0]?.[0] ?? '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AIStudio() {
   const [mode, setMode] = useState<'simple' | 'custom'>('simple');
   const [prompt, setPrompt] = useState('');
@@ -172,9 +197,27 @@ export default function AIStudio() {
   const [progress, setProgress] = useState(0);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
 
+  // Auto-improve (J2): autonomous multi-attempt loop with 8-dimension diagnosis
+  const [autoImprove, setAutoImprove] = useState(false);
+  const [targetScore, setTargetScore] = useState([82]); // ≥82 = authentic Amapiano
+  const [maxAttempts, setMaxAttempts] = useState(3);
+  const [autonomousAttempts, setAutonomousAttempts] = useState<Array<{
+    attempt: number;
+    score: number;
+    weakestDimension: string;
+    prompt: string;
+  }>>([]);
+
+  // J3: stem separation state
+  const [separatingStems, setSeparatingStems] = useState(false);
+  const [stemsReady, setStemsReady] = useState(false);
+
   const generateMusic = trpc.aiStudio.generateMusic.useMutation();
   const generateLyrics = trpc.aiStudio.generateLyrics.useMutation();
   const rateGeneration = trpc.aiStudio.rateGeneration.useMutation();
+  const autonomousMutation = trpc.generate.autonomous.useMutation();
+  const separateStemsMutation = trpc.aiStudio.separateStems.useMutation();
+  const importStemsToDAWMutation = trpc.aiStudio.importStemsToDAW.useMutation();
   
   // Fetch user queue stats
   const { data: userStats } = trpc.queue.getUserStats.useQuery();
@@ -241,7 +284,64 @@ export default function AIStudio() {
     }
 
     setIsGenerating(true);
+    setAutonomousAttempts([]);
+    setCompletedGeneration(null);
+    setCompletedGenerationId(null);
+    setUserRating(null);
+    setProgress(0);
 
+    // ── Auto-improve mode: blocking autonomous loop ───────────────────────────
+    if (autoImprove) {
+      try {
+        const result = await autonomousMutation.mutateAsync({
+          prompt,
+          parameters: {
+            tempo: bpm[0],
+            key: selectedKey,
+            duration: 30,
+          },
+          maxAttempts,
+          targetScore: targetScore[0],
+        });
+
+        setIsGenerating(false);
+        setProgress(100);
+
+        // Build attempt history from allScores + allPrompts
+        if (result.allScores?.length) {
+          setAutonomousAttempts(
+            (result.allScores as any[]).map((s: any, i: number) => ({
+              attempt: i + 1,
+              score: s.overall,
+              weakestDimension: s.breakdown ? weakestDimension(s.breakdown) : '—',
+              prompt: (result.allPrompts as string[])[i] ?? prompt,
+            }))
+          );
+        }
+
+        // Populate score card with best result
+        if (result.generationId != null && result.score) {
+          setCompletedGenerationId(result.generationId);
+          setCompletedGeneration({
+            status: 'completed',
+            audioUrl: result.audioUrl ?? undefined,
+            culturalScore: result.finalScore,
+            culturalScoreBreakdown: result.score as any,
+          });
+          setUserRating(null);
+          const label = result.success ? '✓ Target score reached' : 'Best attempt shown';
+          toast.success(`Auto-improve complete (${result.attempts} attempt${result.attempts !== 1 ? 's' : ''}) — ${label}`);
+        } else {
+          toast.error('Auto-improve produced no valid audio');
+        }
+      } catch (error: any) {
+        toast.error(error.message || 'Auto-improve failed');
+        setIsGenerating(false);
+      }
+      return;
+    }
+
+    // ── Standard single-generation mode ──────────────────────────────────────
     try {
       const result = await generateMusic.mutateAsync({
         prompt,
@@ -416,6 +516,57 @@ export default function AIStudio() {
                   </div>
                 )}
 
+                {/* J2: Auto-improve toggle */}
+                <div className="flex items-center justify-between py-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <Label htmlFor="auto-improve-simple" className="cursor-pointer text-sm">
+                      Auto-improve
+                    </Label>
+                  </div>
+                  <Switch
+                    id="auto-improve-simple"
+                    checked={autoImprove}
+                    onCheckedChange={setAutoImprove}
+                  />
+                </div>
+                {autoImprove && (
+                  <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Target score</Label>
+                        <span className="text-xs font-mono">{targetScore[0]}/100</span>
+                      </div>
+                      <Slider
+                        value={targetScore}
+                        onValueChange={setTargetScore}
+                        min={60}
+                        max={95}
+                        step={1}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Max attempts</Label>
+                      <div className="flex gap-1 mt-1">
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setMaxAttempts(n)}
+                            className={`h-7 w-7 rounded text-xs font-medium transition-colors ${
+                              maxAttempts === n
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt}
@@ -425,12 +576,12 @@ export default function AIStudio() {
                   {isGenerating ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Generating... {progress > 0 && `${progress}%`}
+                      {autoImprove ? 'Auto-improving...' : `Generating... ${progress > 0 ? `${progress}%` : ''}`}
                     </>
                   ) : (
                     <>
-                      <Wand2 className="h-5 w-5" />
-                      Generate Track
+                      {autoImprove ? <Zap className="h-5 w-5" /> : <Wand2 className="h-5 w-5" />}
+                      {autoImprove ? `Auto-improve (up to ${maxAttempts} attempt${maxAttempts !== 1 ? 's' : ''})` : 'Generate Track'}
                     </>
                   )}
                 </Button>
@@ -713,6 +864,57 @@ export default function AIStudio() {
                   </div>
                 )}
 
+                {/* J2: Auto-improve toggle */}
+                <div className="flex items-center justify-between py-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <Label htmlFor="auto-improve-custom" className="cursor-pointer text-sm">
+                      Auto-improve
+                    </Label>
+                  </div>
+                  <Switch
+                    id="auto-improve-custom"
+                    checked={autoImprove}
+                    onCheckedChange={setAutoImprove}
+                  />
+                </div>
+                {autoImprove && (
+                  <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Target score</Label>
+                        <span className="text-xs font-mono">{targetScore[0]}/100</span>
+                      </div>
+                      <Slider
+                        value={targetScore}
+                        onValueChange={setTargetScore}
+                        min={60}
+                        max={95}
+                        step={1}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Max attempts</Label>
+                      <div className="flex gap-1 mt-1">
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setMaxAttempts(n)}
+                            className={`h-7 w-7 rounded text-xs font-medium transition-colors ${
+                              maxAttempts === n
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt}
@@ -722,12 +924,12 @@ export default function AIStudio() {
                   {isGenerating ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Generating... {progress > 0 && `${progress}%`}
+                      {autoImprove ? 'Auto-improving...' : `Generating... ${progress > 0 ? `${progress}%` : ''}`}
                     </>
                   ) : (
                     <>
-                      <Wand2 className="h-5 w-5" />
-                      Generate Track
+                      {autoImprove ? <Zap className="h-5 w-5" /> : <Wand2 className="h-5 w-5" />}
+                      {autoImprove ? `Auto-improve (up to ${maxAttempts} attempt${maxAttempts !== 1 ? 's' : ''})` : 'Generate Track'}
                     </>
                   )}
                 </Button>
@@ -829,6 +1031,62 @@ export default function AIStudio() {
                 </div>
               )}
 
+              {/* J3: 26-stem separation */}
+              {completedGenerationId && (
+                <div className="pt-3 border-t flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    disabled={separatingStems || stemsReady}
+                    onClick={async () => {
+                      setSeparatingStems(true);
+                      try {
+                        await separateStemsMutation.mutateAsync({ generationId: completedGenerationId });
+                        setStemsReady(true);
+                        toast.success('26-stem separation started — stems will appear in your DAW.');
+                      } catch (err: any) {
+                        toast.error(err.message || 'Stem separation failed');
+                      } finally {
+                        setSeparatingStems(false);
+                      }
+                    }}
+                  >
+                    {separatingStems ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Separating…</>
+                    ) : stemsReady ? (
+                      <><Music className="h-4 w-4 text-green-500" /> Stems queued</>
+                    ) : (
+                      <><Music className="h-4 w-4" /> Separate 26 stems</>
+                    )}
+                  </Button>
+                  {stemsReady && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="gap-2"
+                      onClick={async () => {
+                        try {
+                          const result = await importStemsToDAWMutation.mutateAsync({
+                            generationId: completedGenerationId,
+                          });
+                          toast.success(`${result.tracksCreated} stem tracks imported to your DAW project.`);
+                        } catch (err: any) {
+                          toast.error(err.message || 'DAW import failed');
+                        }
+                      }}
+                      disabled={importStemsToDAWMutation.isPending}
+                    >
+                      {importStemsToDAWMutation.isPending ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
+                      ) : (
+                        <><ChevronRight className="h-4 w-4" /> Import to DAW</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {/* 1-5 star rating — closes the T7 feedback loop */}
               {completedGenerationId && (
                 <div className="pt-3 border-t">
@@ -877,6 +1135,54 @@ export default function AIStudio() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* J2: Autonomous attempt history panel */}
+        {autonomousAttempts.length > 0 && !isGenerating && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                Auto-improve Attempts
+              </CardTitle>
+              <CardDescription>
+                Each attempt targeted the weakest dimension from the previous score
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                {autonomousAttempts.map(a => (
+                  <div key={a.attempt} className="flex items-center gap-3 py-2 border-b last:border-0">
+                    <div
+                      className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+                        a.score >= 82
+                          ? 'bg-green-100 text-green-700'
+                          : a.score >= 60
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {a.score}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="font-medium">Attempt {a.attempt}</span>
+                        {a.weakestDimension && a.weakestDimension !== '—' && (
+                          <>
+                            <ChevronRight className="h-3 w-3 shrink-0" />
+                            <span>Fixed: {DIMENSION_LABEL[a.weakestDimension] ?? a.weakestDimension}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5 max-w-xl">
+                        {a.prompt}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

@@ -62,6 +62,7 @@ export const tracks = mysqlTable("tracks", {
   muted: boolean("muted").default(false).notNull(),
   solo: boolean("solo").default(false).notNull(),
   orderIndex: int("orderIndex").default(0).notNull(), // Display order
+  metadata: json("metadata"), // Per-stem quality data: { timbralContractScore?: number (0-8), sdrDb?: number }
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -89,7 +90,7 @@ export const generations = mysqlTable("generations", {
   lyrics: text("lyrics"), // Generated or user-provided lyrics
   style: varchar("style", { length: 100 }), // Genre/style tags
   title: varchar("title", { length: 255 }), // Track title
-  stemsUrl: json("stemsUrl"), // URLs to separated stems {drums, bass, vocals, other}
+  stemsUrl: json("stemsUrl"), // 26-stem Amapiano ontology map: { [stemId]: { url, key?, sdr_db? } } — see shared/stems.ts
   parentId: int("parentId"), // For variations/versions
   variationType: varchar("variationType", { length: 50 }), // "remix", "variation", "extend"
   duration: int("duration"), // Duration in seconds

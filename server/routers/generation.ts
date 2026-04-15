@@ -10,9 +10,10 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import * as modalClient from "../modalClient";
 import { getQueuePosition, getQueueStats } from "../queueManager";
-import { executeMusicGenerationWorkflow } from "../temporalClient";
+import { executeMusicGenerationWorkflow, executeStemSeparationWorkflow } from "../temporalClient";
 import { invokeLLM } from "../_core/llm";
 import { storageDelete } from "../storage";
+import { ALL_STEM_IDS, SEPARATION_MODEL_CAPABILITIES } from "../../shared/stems";
 
 const generationParams = z.object({
   tempo: z.number().optional(),
@@ -83,6 +84,31 @@ export const generateRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { scoreCulturalAuthenticity, generateImprovementPrompt } = await import("../culturalScoring");
 
+      // NOTE T-new: This procedure runs in the tRPC request handler.
+      // Per-attempt polling keeps Phase 1 working with the fire-and-forget Modal
+      // pattern, but the correct Phase 2 architecture is a dedicated Temporal
+      // workflow (AutonomousGenerationWorkflow) so that crashes and timeouts do
+      // not lose in-progress attempts. Refactor before Phase 2.
+      //
+      // Poll interval / ceiling aligned with MusicGenerationWorkflow (10 s × 60 = 10 min).
+      const POLL_INTERVAL_MS = 10_000;
+      const POLL_MAX_MS      = 600_000; // 10 min per attempt
+
+      /**
+       * Wait for the webhook handler to set resultUrl on the generation row.
+       * Returns the URL or null if the attempt failed / timed out.
+       */
+      async function pollForResultUrl(generationId: number): Promise<string | null> {
+        const deadline = Date.now() + POLL_MAX_MS;
+        while (Date.now() < deadline) {
+          await new Promise<void>(r => setTimeout(r, POLL_INTERVAL_MS));
+          const row = await db.getGenerationById(generationId);
+          if (row?.resultUrl) return row.resultUrl;
+          if (row?.status === "failed") return null;
+        }
+        return null; // timed out
+      }
+
       let attempt = 0;
       let bestGeneration: any = null;
       let bestScore = 0;
@@ -90,11 +116,11 @@ export const generateRouter = router({
       const allScores: any[] = [];
       const allPrompts: string[] = [input.prompt];
 
-      console.log("[Autonomous Workflow] Starting with target score:", input.targetScore);
+      console.log("[Autonomous] Starting — target:", input.targetScore, "max attempts:", input.maxAttempts);
 
       while (attempt < input.maxAttempts) {
         attempt++;
-        console.log(`[Autonomous Workflow] Attempt ${attempt}/${input.maxAttempts}`);
+        console.log(`[Autonomous] Attempt ${attempt}/${input.maxAttempts}`);
 
         const generation = await db.createGeneration({
           userId: ctx.user.id,
@@ -120,7 +146,7 @@ export const generateRouter = router({
             topP: p?.topP,
             cfgScale: p?.cfgScale,
             generationMode: p?.generationMode || "creative",
-          });
+          }, generation.id);
 
           await db.updateGeneration(generation.id, {
             workflowId: modalResponse.jobId,
@@ -129,35 +155,52 @@ export const generateRouter = router({
             completedAt: modalResponse.status === "completed" ? new Date() : undefined,
           });
 
-          if (modalResponse.audioUrl) {
-            const score = await scoreCulturalAuthenticity(modalResponse.audioUrl, currentPrompt, input.parameters || {});
-            console.log(`[Autonomous Workflow] Attempt ${attempt} score:`, score.overall);
+          // Resolve audioUrl: synchronous (Modal returned inline) or polled (fire-and-forget)
+          const audioUrl: string | null =
+            modalResponse.audioUrl ?? await pollForResultUrl(generation.id);
 
-            await db.updateGeneration(generation.id, { culturalScore: score.overall.toString() });
+          if (audioUrl) {
+            const score = await scoreCulturalAuthenticity(audioUrl, currentPrompt, input.parameters || {});
+            console.log(`[Autonomous] Attempt ${attempt} score:`, score.overall,
+              `— weakest: ${Object.entries(score.breakdown)
+                .sort(([,a],[,b]) => a - b)[0][0]}`);
+
+            await db.updateGeneration(generation.id, {
+              status: "completed",
+              resultUrl: audioUrl,
+              completedAt: new Date(),
+              culturalScore: score.overall.toString(),
+              culturalScoreBreakdown: score,
+            });
             allScores.push(score);
 
             if (score.overall > bestScore) {
               bestScore = score.overall;
-              bestGeneration = { ...generation, resultUrl: modalResponse.audioUrl, culturalScore: score.overall.toString(), score };
+              bestGeneration = { ...generation, resultUrl: audioUrl, culturalScore: score.overall.toString(), score };
             }
 
             if (score.overall >= input.targetScore) {
-              console.log("[Autonomous Workflow] Target score achieved!");
-              return { success: true, generationId: generation.id, attempts: attempt, finalScore: score.overall, audioUrl: modalResponse.audioUrl, score, allScores, allPrompts, finalPrompt: currentPrompt };
+              console.log("[Autonomous] Target score achieved!");
+              return { success: true, generationId: generation.id, attempts: attempt, finalScore: score.overall, audioUrl, score, allScores, allPrompts, finalPrompt: currentPrompt };
             }
 
             if (attempt < input.maxAttempts) {
               currentPrompt = generateImprovementPrompt(input.prompt, score, input.parameters || {});
               allPrompts.push(currentPrompt);
+              console.log(`[Autonomous] Improvement prompt set for attempt ${attempt + 1}`);
             }
+          } else {
+            // Timed out or generation failed during polling
+            console.warn(`[Autonomous] Attempt ${attempt} produced no audio — skipping`);
+            await db.updateGeneration(generation.id, { status: "failed", errorMessage: "No audio produced within 10 minutes" });
           }
         } catch (error) {
-          console.error(`[Autonomous Workflow] Attempt ${attempt} failed:`, error);
+          console.error(`[Autonomous] Attempt ${attempt} failed:`, error);
           await db.updateGeneration(generation.id, { status: "failed", errorMessage: error instanceof Error ? error.message : "Unknown error" });
         }
       }
 
-      console.log("[Autonomous Workflow] Max attempts reached. Best score:", bestScore);
+      console.log("[Autonomous] Max attempts reached. Best score:", bestScore);
       return { success: false, generationId: bestGeneration?.id, attempts: input.maxAttempts, finalScore: bestScore, audioUrl: bestGeneration?.resultUrl, score: bestGeneration?.score, allScores, allPrompts, finalPrompt: currentPrompt, message: `Target score not achieved. Best score: ${bestScore}/${input.targetScore}` };
     }),
 
@@ -223,7 +266,7 @@ export const generateRouter = router({
           try {
             const { scoreCulturalAuthenticity } = await import("../culturalScoring");
             const score = await scoreCulturalAuthenticity(input.audioUrl!, gen.prompt, {});
-            await db.updateGeneration(input.generationId, { culturalScore: score.overall.toString() });
+            await db.updateGeneration(input.generationId, { culturalScore: score.overall.toString(), culturalScoreBreakdown: score });
             console.log("[T7] Auto-scored generation", input.generationId, "→", score.overall);
           } catch (err) {
             console.error("[T7] Auto-scoring failed for generation", input.generationId, err);
@@ -375,18 +418,38 @@ export const generationHistoryRouter = router({
 
 export const stemSeparationRouter = router({
   separate: protectedProcedure
-    .input(z.object({ audioUrl: z.string(), trackName: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .input(z.object({
+      audioUrl: z.string(),
+      trackName: z.string().optional(),
+      // Optional — pass the generation DB ID when called from AIStudio so the
+      // Temporal workflow can correlate completion events back to the row.
+      // Callers that only have an audioUrl (e.g. Analysis.tsx) may omit this.
+      generationId: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      console.log("[Stem Separation] Starting 26-stem separation for:", input.audioUrl);
+      // Use htdemucs_6s as the first-pass model; the secondary classification
+      // pipeline on Modal expands the 6 stems into the full 26-stem ontology.
+      // When the fine-tuned model is available, switch to "htdemucs_ft" which
+      // natively produces all 26 stems in a single pass.
       try {
-        console.log("[Stem Separation] Starting separation for:", input.audioUrl);
+        const workflowHandle = await executeStemSeparationWorkflow({
+          generationId: input.generationId ?? 0,
+          userId: ctx.user.id,
+          audioUrl: input.audioUrl,
+          modalBaseUrl: process.env.MODAL_BASE_URL || "",
+          modalApiKey: process.env.MODAL_API_KEY || "",
+        });
+        console.log("[Stem Separation] StemSeparationWorkflow started:", workflowHandle.workflowId);
+        return { jobId: workflowHandle.workflowId, workflowId: workflowHandle.workflowId, status: "processing" as const };
+      } catch (temporalErr) {
+        // T3 fallback: direct Modal call until Temporal is wired in all environments
+        console.warn("[Stem Separation] Temporal unavailable, falling back to direct Modal:", temporalErr);
         const result = await modalClient.separateStems({
           audioUrl: input.audioUrl,
-          stemTypes: ["vocals", "drums", "bass", "other"],
+          stemTypes: SEPARATION_MODEL_CAPABILITIES["htdemucs_6s"] as string[],
         });
         return result;
-      } catch (error) {
-        console.error("[Stem Separation] Error:", error);
-        throw new Error("Stem separation failed. Make sure Modal AI services are deployed.");
       }
     }),
 
@@ -531,12 +594,35 @@ export const aiStudioRouter = router({
       const generation = await db.getGenerationById(input.generationId);
       if (!generation || !generation.resultUrl) throw new Error("Generation not found or not completed");
 
-      const stemResult = await modalClient.separateStems({ audioUrl: generation.resultUrl, stemTypes: ["drums", "bass", "vocals", "other"] });
-
-      if (stemResult.status === "completed" && stemResult.stems) {
-        await db.updateGeneration(input.generationId, { stemsUrl: JSON.stringify(stemResult.stems) });
+      // Use Temporal StemSeparationWorkflow for durable execution — crash recovery
+      // and per-stem progress events. Falls back to direct Modal call if Temporal
+      // is unavailable (T3 not yet resolved for all environments).
+      try {
+        const workflowHandle = await executeStemSeparationWorkflow({
+          generationId: input.generationId,
+          userId: ctx.user.id,
+          audioUrl: generation.resultUrl,
+          modalBaseUrl: process.env.MODAL_BASE_URL || "",
+          modalApiKey: process.env.MODAL_API_KEY || "",
+        });
+        await db.updateGeneration(input.generationId, { status: "processing" });
+        console.log("[J3] StemSeparationWorkflow started:", workflowHandle.workflowId);
+        return { workflowId: workflowHandle.workflowId, status: "processing" as const };
+      } catch (temporalError) {
+        // T3 fallback: direct Modal call until Temporal is wired in all environments
+        console.warn("[J3] Temporal unavailable — falling back to direct Modal call:", temporalError);
+        const stemResult = await modalClient.separateStems({
+          audioUrl: generation.resultUrl,
+          stemTypes: SEPARATION_MODEL_CAPABILITIES["htdemucs_6s"] as string[],
+        });
+        if (stemResult.status === "completed" && stemResult.stems) {
+          await db.updateGeneration(input.generationId, {
+            // stemsUrl holds the full 26-stem map: { [stemId]: { url, key, sdr_db } }
+            stemsUrl: JSON.stringify(stemResult.stems),
+          });
+        }
+        return stemResult;
       }
-      return stemResult;
     }),
 
   importStemsToDAW: protectedProcedure
@@ -546,9 +632,28 @@ export const aiStudioRouter = router({
       if (!generation) throw new Error("Generation not found");
       if (!generation.stemsUrl) throw new Error("No stems available for this generation");
 
-      let stems: Array<{ name: string; url: string }> = [];
+      // stemsUrl may be either:
+      //   - Legacy 4-stem array:  [{ name: "drums", url: "..." }, ...]
+      //   - 26-stem ontology map: { "log_drum": { url, key, sdr_db }, ... }
+      // Normalise both to [{ stemId, url, sdrDb? }] for track creation.
+      type StemEntry = { stemId: string; url: string; sdrDb?: number };
+      let stems: StemEntry[] = [];
       try {
-        stems = typeof generation.stemsUrl === "string" ? JSON.parse(generation.stemsUrl) : [];
+        const raw = typeof generation.stemsUrl === "string"
+          ? JSON.parse(generation.stemsUrl)
+          : generation.stemsUrl;
+
+        if (Array.isArray(raw)) {
+          // Legacy format
+          stems = (raw as Array<{ name: string; url: string }>)
+            .filter(s => s.url)
+            .map(s => ({ stemId: s.name, url: s.url }));
+        } else if (raw && typeof raw === "object") {
+          // 26-stem map format
+          stems = Object.entries(raw as Record<string, { url?: string; key?: string; sdr_db?: number }>)
+            .filter(([, v]) => v?.url)
+            .map(([stemId, v]) => ({ stemId, url: v.url!, sdrDb: v.sdr_db }));
+        }
       } catch {
         throw new Error("Failed to parse stems data");
       }
@@ -571,13 +676,15 @@ export const aiStudioRouter = router({
       await Promise.all(stems.map(async (stem, idx) => {
         const track = await db.createTrack({
           projectId: activeProject.id,
-          name: `${generation.title || "Generation"} - ${stem.name}`,
-          type: "audio",
+          name: `${generation.title || "Generation"} — ${stem.stemId.replace(/_/g, " ")}`,
+          type: stem.stemId,          // stem ID is the track type — drives color in DAW
           audioUrl: stem.url,
           duration: generation.duration || 30,
           volume: 0.8,
           pan: 0,
           orderIndex: idx,
+          // Store per-stem quality data for display in track header
+          metadata: stem.sdrDb != null ? { sdrDb: stem.sdrDb } : undefined,
         });
         createdTracks.push(track);
       }));
@@ -618,7 +725,7 @@ export const aiStudioRouter = router({
           try {
             const { scoreCulturalAuthenticity } = await import("../culturalScoring");
             const score = await scoreCulturalAuthenticity(gen.resultUrl, gen.prompt, {});
-            await db.updateGeneration(input.generationId, { culturalScore: score.overall.toString() });
+            await db.updateGeneration(input.generationId, { culturalScore: score.overall.toString(), culturalScoreBreakdown: score });
           } catch (err) {
             console.error("[T7] Auto-scoring failed during rating:", err);
             // Non-fatal: gold standard still written without score; score will arrive via webhook

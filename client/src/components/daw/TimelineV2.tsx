@@ -18,6 +18,7 @@ import { trpc } from '@/lib/trpc';
 import { AudioEngine } from '@/services/AudioEngine';
 import type { Track, AudioClip } from '@/../../drizzle/schema';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
+import { STEM_REGISTRY } from '@/../../shared/stems';
 import { AddAudioClipCommand, DeleteAudioClipCommand, UpdateClipPositionCommand } from '@/services/UndoRedoManager';
 
 interface TimelineProps {
@@ -280,18 +281,19 @@ export default function TimelineV2({
 
   // Helper functions
   const getTrackColor = (type: string): string => {
-    const colors: Record<string, string> = {
-      'log_drum': '#8b5cf6',
-      'shakers': '#f59e0b',
-      'chords': '#3b82f6',
-      'bass': '#ef4444',
-      'saxophone': '#10b981',
-      'vocal': '#ec4899',
-      'percussion': '#f97316',
-      'fx': '#6366f1',
-      'audio': '#64748b',
+    // Single source of truth: colors come from STEM_REGISTRY in shared/stems.ts.
+    // Adding or renaming a stem updates color everywhere automatically.
+    const registryColor = STEM_REGISTRY[type as keyof typeof STEM_REGISTRY]?.color;
+    if (registryColor) return registryColor;
+    // Fallbacks for legacy/generic track types not in the 26-stem ontology
+    const legacyColors: Record<string, string> = {
+      'drums':  '#8b5cf6',
+      'bass':   '#ef4444',
+      'vocals': '#ec4899',
+      'other':  '#64748b',
+      'audio':  '#64748b',
     };
-    return colors[type] || '#64748b';
+    return legacyColors[type] ?? '#64748b';
   };
 
   const formatTime = (seconds: number): string => {
@@ -381,6 +383,21 @@ export default function TimelineV2({
                       <MoreHorizontal className="h-3 w-3" />
                     </Button>
                   </div>
+                  {/* Log drum timbral contract score badge — shown when stem SDR available */}
+                  {track.type === 'log_drum' && (track as any).metadata?.sdrDb != null && (
+                    <div
+                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded w-fit ${
+                        (track as any).metadata.sdrDb >= 8
+                          ? 'bg-green-100 text-green-700'
+                          : (track as any).metadata.sdrDb >= 6
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                      title="Log drum SDR (signal-to-distortion ratio) — target ≥ 8 dB per CLAUDE.md §4"
+                    >
+                      SDR {(track as any).metadata.sdrDb.toFixed(1)} dB
+                    </div>
+                  )}
                   
                   <div className="flex items-center gap-2">
                     <Button
