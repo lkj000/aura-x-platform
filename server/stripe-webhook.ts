@@ -9,9 +9,19 @@ import { getMaxConcurrentJobs } from '../shared/tierConfig';
 import type { UserTier } from '../shared/tierConfig';
 import { getDb } from './db';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-12-15.clover',
-});
+// Lazy-initialized so the server starts even when STRIPE_SECRET_KEY is absent
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY is not set — Stripe webhooks are unavailable');
+    }
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2025-12-15.clover',
+    });
+  }
+  return _stripe;
+}
 
 /**
  * Stripe Webhook Handler
@@ -34,7 +44,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
   try {
     // Verify webhook signature
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!
