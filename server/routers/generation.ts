@@ -519,7 +519,7 @@ export const aiStudioRouter = router({
             prompt: input.prompt,
             duration: input.duration || 30,
             temperature: 1.0,
-          });
+          }, generation.id);
           if (modalResult.audioUrl) {
             await db.updateGeneration(generation.id, { status: "completed", resultUrl: modalResult.audioUrl });
           } else {
