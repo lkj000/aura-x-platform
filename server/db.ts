@@ -21,3 +21,4 @@ export * from "./db/collaboration";
 export * from "./db/marketplace";
 export * from "./db/social";
 export * from "./db/training";
+export * from "./db/midi";

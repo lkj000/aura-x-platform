@@ -28,6 +28,7 @@ import { publicProcedure, router } from "./_core/trpc";
 
 // DAW
 import { projectsRouter, tracksRouter, audioClipsRouter, midiNotesRouter, automationRouter } from "./routers/daw";
+import { midiRouter } from "./routers/midi";
 
 // Generation / AI
 import { generateRouter, generationHistoryRouter, stemSeparationRouter, aiStudioRouter } from "./routers/generation";
@@ -79,6 +80,7 @@ export const appRouter = router({
   audioClips: audioClipsRouter,
   midiNotes: midiNotesRouter,
   automation: automationRouter,
+  midi: midiRouter,
 
   // Generation / AI
   generate: generateRouter,

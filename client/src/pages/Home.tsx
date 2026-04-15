@@ -38,6 +38,7 @@ import { History, Library } from 'lucide-react';
 import { keyboardShortcuts, defaultShortcuts } from '@/services/KeyboardShortcuts';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
 import { HistoryPanel } from '@/components/HistoryPanel';
+import { useMIDIPersistence } from '@/hooks/useMIDIPersistence';
 
 export default function Home() {
   // Use DAW store for state management
@@ -48,6 +49,7 @@ export default function Home() {
     setTempo: dawSetTempo,
     playheadPosition,
     setPlayheadPosition,
+    updateTrack,
   } = useDAWStore();
   
   const {
@@ -71,6 +73,31 @@ export default function Home() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [zoom, setZoom] = useState(1);
   const { canUndo, canRedo, undo, redo, undoDescription, redoDescription } = useUndoRedo();
+
+  // MIDI persistence: restore mappings from DB on mount, debounce save on change
+  useMIDIPersistence();
+
+  // MIDI → DAW parameter dispatch (< 10ms path: CustomEvent → Zustand, no tRPC)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { parameter, value } = (e as CustomEvent).detail as {
+        parameter: string;
+        value: number;
+      };
+      if (parameter === 'tempo') {
+        dawSetTempo(value);
+        return;
+      }
+      // "track:{trackId}:volume" | "track:{trackId}:pan"
+      const match = parameter.match(/^track:([^:]+):(volume|pan)$/);
+      if (match) {
+        const [, trackId, field] = match;
+        updateTrack(trackId, { [field]: value } as { volume?: number; pan?: number });
+      }
+    };
+    window.addEventListener('midi-parameter-change', handler);
+    return () => window.removeEventListener('midi-parameter-change', handler);
+  }, [updateTrack, dawSetTempo]);
 
   // Initialize keyboard shortcuts
   useEffect(() => {

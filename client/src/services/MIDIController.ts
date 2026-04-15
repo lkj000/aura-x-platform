@@ -34,6 +34,8 @@ export interface MIDIMapping {
 type MIDIMessageCallback = (message: MIDIMessage) => void;
 type MIDIDeviceCallback = (device: MIDIDevice) => void;
 
+type SaveCallback = (deviceId: string, mappings: MIDIMapping[]) => void;
+
 class MIDIControllerService {
   private midiAccess: MIDIAccess | null = null;
   private inputs: Map<string, MIDIInput> = new Map();
@@ -43,6 +45,9 @@ class MIDIControllerService {
   private mappings: Map<string, MIDIMapping> = new Map();
   private learnMode: boolean = false;
   private learnCallback: ((controller: number) => void) | null = null;
+  /** Debounced persist callback — set by useMIDIPersistence hook */
+  private saveCallback: SaveCallback | null = null;
+  private saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Initialize Web MIDI API
@@ -272,12 +277,32 @@ class MIDIControllerService {
   }
 
   /**
+   * Register a debounced persist callback (set by useMIDIPersistence hook).
+   * Pass null to clear.
+   */
+  setSaveCallback(cb: SaveCallback | null) {
+    this.saveCallback = cb;
+  }
+
+  /**
+   * Restore mappings from DB (called on page load by useMIDIPersistence hook).
+   * Replaces any in-memory state — does NOT trigger a save back to DB.
+   */
+  loadMappings(mappings: MIDIMapping[]) {
+    this.mappings.clear();
+    for (const m of mappings) {
+      this.mappings.set(m.id, m);
+    }
+  }
+
+  /**
    * Add a controller mapping
    */
   addMapping(mapping: Omit<MIDIMapping, 'id'>): string {
     const id = `mapping-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const fullMapping: MIDIMapping = { ...mapping, id };
     this.mappings.set(id, fullMapping);
+    this.triggerDebouncedSave(mapping.deviceId);
     return id;
   }
 
@@ -285,7 +310,32 @@ class MIDIControllerService {
    * Remove a controller mapping
    */
   removeMapping(id: string): boolean {
-    return this.mappings.delete(id);
+    const mapping = this.mappings.get(id);
+    const deleted = this.mappings.delete(id);
+    if (deleted && mapping) {
+      this.triggerDebouncedSave(mapping.deviceId);
+    }
+    return deleted;
+  }
+
+  /**
+   * Debounce DB persist — coalesces rapid add/remove calls during MIDI learn
+   * into a single write 500 ms after the last change.
+   */
+  private triggerDebouncedSave(deviceId: string) {
+    if (!this.saveCallback) return;
+    if (this.saveDebounceTimer !== null) {
+      clearTimeout(this.saveDebounceTimer);
+    }
+    this.saveDebounceTimer = setTimeout(() => {
+      this.saveDebounceTimer = null;
+      if (this.saveCallback) {
+        const deviceMappings = Array.from(this.mappings.values()).filter(
+          m => m.deviceId === deviceId
+        );
+        this.saveCallback(deviceId, deviceMappings);
+      }
+    }, 500);
   }
 
   /**
