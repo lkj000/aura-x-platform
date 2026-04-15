@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 describe('Modal API Integration', () => {
-  it('should validate Modal API endpoint health check', { timeout: 15000 }, async () => {
+  it.skipIf(!process.env.MODAL_TEST_INTEGRATION)('should validate Modal API endpoint health check', { timeout: 15000 }, async () => {
     const modalApiUrl = process.env.VITE_MODAL_API_URL;
     
     expect(modalApiUrl).toBeDefined();

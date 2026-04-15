@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as db from './db';
 
-describe('Project Collaboration', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Project Collaboration', () => {
   let testUserId1: number;
   let testUserId2: number;
   let testProjectId: number;

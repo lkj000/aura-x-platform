@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as db from './db';
 
-describe('Preset Favorites', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Preset Favorites', () => {
   let testUserId: number;
 
   beforeAll(async () => {
@@ -41,7 +41,7 @@ describe('Preset Favorites', () => {
   });
 });
 
-describe('Custom Presets', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Custom Presets', () => {
   let testUserId: number;
   let createdPresetId: number;
 

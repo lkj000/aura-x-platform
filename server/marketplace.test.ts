@@ -33,6 +33,8 @@ function createMockContext(userId?: number): TrpcContext {
   };
 }
 
+const noDb = !process.env.DATABASE_URL;
+
 describe('Marketplace Router', () => {
   const caller = appRouter.createCaller(createMockContext());
   const authenticatedCaller = appRouter.createCaller(createMockContext(1));
@@ -106,7 +108,7 @@ describe('Marketplace Router', () => {
       ).rejects.toThrow();
     });
 
-    it('should create a sample pack when authenticated', async () => {
+    it.skipIf(noDb)('should create a sample pack when authenticated', async () => {
       const pack = await authenticatedCaller.marketplace.createPack({
         title: 'Test Amapiano Pack',
         description: 'Premium log drums and piano chords',
@@ -123,7 +125,7 @@ describe('Marketplace Router', () => {
       expect(pack.sellerId).toBe(1);
     });
 
-    it('should validate required fields', async () => {
+    it.skipIf(noDb)('should validate required fields', async () => {
       // Note: Database allows empty strings and negative prices
       // In production, add validation in the tRPC input schema
       const pack = await authenticatedCaller.marketplace.createPack({
@@ -140,7 +142,7 @@ describe('Marketplace Router', () => {
   });
 
   describe('getPack', () => {
-    it('should get pack details without authentication', async () => {
+    it.skipIf(noDb)('should get pack details without authentication', async () => {
       // First create a pack
       const pack = await authenticatedCaller.marketplace.createPack({
         title: 'Test Pack for Retrieval',
@@ -173,7 +175,7 @@ describe('Marketplace Router', () => {
       ).rejects.toThrow();
     });
 
-    it('should create a purchase record when authenticated', async () => {
+    it.skipIf(noDb)('should create a purchase record when authenticated', async () => {
       // First create a pack
       const pack = await authenticatedCaller.marketplace.createPack({
         title: 'Pack to Purchase',
@@ -220,7 +222,7 @@ describe('Marketplace Router', () => {
       ).rejects.toThrow();
     });
 
-    it('should add a review when authenticated', async () => {
+    it.skipIf(noDb)('should add a review when authenticated', async () => {
       // First create a pack
       const pack = await authenticatedCaller.marketplace.createPack({
         title: 'Pack to Review',
@@ -243,7 +245,7 @@ describe('Marketplace Router', () => {
       expect(review.userId).toBe(1);
     });
 
-    it('should validate rating range', async () => {
+    it.skipIf(noDb)('should validate rating range', async () => {
       const pack = await authenticatedCaller.marketplace.createPack({
         title: 'Pack for Invalid Review',
         description: 'Test',
@@ -269,7 +271,7 @@ describe('Marketplace Router', () => {
   });
 
   describe('getPackReviews', () => {
-    it('should get reviews without authentication', async () => {
+    it.skipIf(noDb)('should get reviews without authentication', async () => {
       // Create a pack and add a review
       const pack = await authenticatedCaller.marketplace.createPack({
         title: 'Pack with Reviews',

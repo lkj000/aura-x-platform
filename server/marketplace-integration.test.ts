@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { appRouter } from './routers';
 import * as db from './db';
 
-describe('Marketplace Integration Tests', () => {
+describe.skipIf(!process.env.DATABASE_URL)('Marketplace Integration Tests', () => {
   let testUserId = 1; // Use existing test user
   let testPackId: number;
   let testSellerId = 1; // Use existing test user
