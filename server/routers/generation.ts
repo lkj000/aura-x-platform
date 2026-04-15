@@ -449,6 +449,12 @@ export const stemSeparationRouter = router({
           audioUrl: input.audioUrl,
           stemTypes: SEPARATION_MODEL_CAPABILITIES["htdemucs_6s"] as string[],
         });
+        if (result.status === "failed" || result.error) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: result.error || "Stem separation failed — Modal backend may not be deployed.",
+          });
+        }
         return result;
       }
     }),
@@ -631,6 +637,12 @@ export const aiStudioRouter = router({
           audioUrl: generation.resultUrl,
           stemTypes: SEPARATION_MODEL_CAPABILITIES["htdemucs_6s"] as string[],
         });
+        if (stemResult.status === "failed" || stemResult.error) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: stemResult.error || "Stem separation failed — Modal backend may not be deployed.",
+          });
+        }
         if (stemResult.status === "completed" && stemResult.stems) {
           await db.updateGeneration(input.generationId, {
             // stemsUrl holds the full 26-stem map: { [stemId]: { url, key, sdr_db } }

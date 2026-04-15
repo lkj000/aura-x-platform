@@ -159,7 +159,17 @@ export async function generateMusic(params: MusicGenerationParams, generationId?
 export async function separateStems(params: StemSeparationParams): Promise<StemSeparationResponse> {
   try {
     console.log('[ModalClient] Separating stems for:', params.audioUrl);
-    
+
+    // Modal not deployed yet — return a clear pending response instead of a 500
+    if (!process.env.VITE_MODAL_API_URL || MODAL_BASE_URL.includes('mabgwej--aura-x-ai-fastapi-app')) {
+      console.warn('[ModalClient] Modal backend not deployed. Stem separation requires Modal deployment.');
+      return {
+        jobId: `demo-stems-${Date.now()}`,
+        status: 'failed',
+        error: 'Stem separation requires the Modal backend to be deployed. Run: cd modal_backend && modal deploy modal_app.py',
+      };
+    }
+
     const response = await modalClient.post('/separate_stems', {
       audio_url: params.audioUrl,
       stem_types: params.stemTypes || ['vocals', 'drums', 'bass', 'other'],
