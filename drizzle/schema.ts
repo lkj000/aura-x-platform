@@ -254,6 +254,29 @@ export type MidiNote = typeof midiNotes.$inferSelect;
 export type InsertMidiNote = typeof midiNotes.$inferInsert;
 
 /**
+ * MIDI Controller Mappings table — persists user MIDI CC → DAW parameter bindings.
+ *
+ * One row per (userId, deviceId). The mappings JSON array stores the full
+ * MIDIMapping objects from MIDIController.ts so the service can restore them
+ * on page load without the user having to re-run MIDI learn.
+ *
+ * Parameter names follow the DAW store action targets:
+ *   "track:{trackId}:volume" | "track:{trackId}:pan" | "tempo"
+ */
+export const midiMappings = mysqlTable("midi_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),   // Foreign key to users
+  deviceId: varchar("deviceId", { length: 255 }).notNull(), // Web MIDI device ID
+  deviceName: varchar("deviceName", { length: 255 }), // Human-readable label
+  mappings: json("mappings").notNull(), // MIDIMapping[] — see MIDIController.ts interface
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MidiMappingRow = typeof midiMappings.$inferSelect;
+export type InsertMidiMapping = typeof midiMappings.$inferInsert;
+
+/**
  * Preset Favorites table - User's favorited presets
  */
 export const presetFavorites = mysqlTable("preset_favorites", {
