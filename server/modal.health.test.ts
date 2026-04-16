@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import axios from 'axios';
 
+// Only run when MODAL_BASE_URL is explicitly set (manual QA / staging).
+// CI does not set this variable, so the test is skipped automatically.
 describe('Modal AI Endpoint Health Check', () => {
-  it('should successfully connect to Modal health endpoint', async () => {
-    const modalBaseUrl = process.env.MODAL_BASE_URL || 'https://mabgwej--aura-x-ai-fastapi-app.modal.run';
-    
+  it.skipIf(!process.env.MODAL_BASE_URL)('should successfully connect to Modal health endpoint', async () => {
+    const modalBaseUrl = process.env.MODAL_BASE_URL!;
+
     const response = await axios.get(`${modalBaseUrl}/health`, {
       timeout: 10000,
     });
-    
+
     expect(response.status).toBe(200);
     expect(response.data).toHaveProperty('status');
     expect(response.data.status).toBe('healthy');
