@@ -61,12 +61,21 @@ export async function runMigrations(): Promise<void> {
         try {
           await db.execute(statement as any);
         } catch (err: any) {
-          // Idempotent: ignore columns/tables that already exist
+          // Idempotent: ignore columns/tables that already exist.
+          // DrizzleQueryError wraps the real MySQL error — check both the
+          // outer message and err.cause.message, plus the MySQL error code.
           const msg: string = err?.message ?? "";
+          const causeMsg: string = err?.cause?.message ?? "";
+          const errCode: string = err?.cause?.code ?? err?.code ?? "";
           if (
             msg.includes("Duplicate column") ||
             msg.includes("already exists") ||
-            msg.includes("Duplicate key name")
+            msg.includes("Duplicate key name") ||
+            causeMsg.includes("already exists") ||
+            causeMsg.includes("Duplicate column") ||
+            causeMsg.includes("Duplicate key name") ||
+            errCode === "ER_TABLE_EXISTS_ERROR" ||
+            errCode === "ER_DUP_FIELDNAME"
           ) {
             continue;
           }
