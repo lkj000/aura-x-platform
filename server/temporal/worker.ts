@@ -81,11 +81,12 @@ export async function startWorkers(): Promise<void> {
   await Promise.all([musicWorker.run(), djWorker.run()]);
 }
 
-// Allow running as a standalone process: `npx tsx server/temporal/worker.ts`
-// ESM equivalent of require.main === module
-if (import.meta.url === new URL(process.argv[1] ?? "", "file:").href) {
-  startWorkers().catch((err) => {
-    console.error("[Worker] Fatal error:", err);
-    process.exit(1);
-  });
-}
+// Standalone invocation guard intentionally removed.
+//
+// In the esbuild bundle (dist/index.js) import.meta.url === process.argv[1]
+// is ALWAYS true, so the block fired on every server start, called
+// startWorkers() a second time, and process.exit(1)'d when Temporal was
+// unreachable — killing the server in a restart loop.
+//
+// startWorkers() is called (with a graceful .catch) by server/_core/index.ts.
+// For standalone use: npx tsx server/temporal/worker-standalone.ts
