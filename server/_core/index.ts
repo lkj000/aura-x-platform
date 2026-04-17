@@ -32,6 +32,17 @@ async function startServer() {
   const { runMigrations } = await import("../db/core");
   await runMigrations();
 
+  // Start Temporal worker in-process.
+  // If TEMPORAL_SERVER_URL is not set or unreachable the error is logged but
+  // the API server continues — workflows will fail fast with a 503 (no silent fallback).
+  const { startWorkers } = await import("../temporal/worker");
+  startWorkers().catch((err: unknown) => {
+    console.warn(
+      "[Temporal Worker] Could not start — set TEMPORAL_SERVER_URL, TEMPORAL_NAMESPACE, TEMPORAL_API_KEY to enable durable workflows.",
+      err instanceof Error ? err.message : err
+    );
+  });
+
   const app = express();
   const server = createServer(app);
   

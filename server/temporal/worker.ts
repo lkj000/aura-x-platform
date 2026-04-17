@@ -23,46 +23,61 @@ import { Worker, NativeConnection } from "@temporalio/worker";
 import * as activities from "./activities";
 
 const TEMPORAL_SERVER_URL = process.env.TEMPORAL_SERVER_URL || "localhost:7233";
+const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE || "default";
+const TEMPORAL_API_KEY = process.env.TEMPORAL_API_KEY || "";
 
-async function runWorker(taskQueue: string): Promise<Worker> {
-  const connection = await NativeConnection.connect({
-    address: TEMPORAL_SERVER_URL,
-  });
+function buildNativeConnectionOptions() {
+  const isCloud = TEMPORAL_SERVER_URL.includes("tmprl.cloud");
+  if (isCloud && TEMPORAL_API_KEY) {
+    return {
+      address: TEMPORAL_SERVER_URL,
+      tls: true as const,
+      metadata: {
+        authorization: `Bearer ${TEMPORAL_API_KEY}`,
+      },
+    };
+  }
+  return { address: TEMPORAL_SERVER_URL };
+}
+
+async function createWorker(taskQueue: string): Promise<Worker> {
+  const connection = await NativeConnection.connect(buildNativeConnectionOptions());
 
   const worker = await Worker.create({
     connection,
+    namespace: TEMPORAL_NAMESPACE,
     taskQueue,
-    // Workflows are loaded from this file's sibling workflows.ts.
-    // The workflowsPath must point to the compiled JS or TSX-transpiled module.
     workflowsPath: require.resolve("./workflows"),
     activities,
-    // Concurrency limits — tune to available CPU/memory.
     maxConcurrentActivityTaskExecutions: 10,
     maxConcurrentWorkflowTaskExecutions: 10,
   });
 
-  console.log(
-    `[Worker] Registered on queue "${taskQueue}" → ${TEMPORAL_SERVER_URL}`
-  );
-
+  console.log(`[Worker] Registered on queue "${taskQueue}" → ${TEMPORAL_SERVER_URL} (namespace: ${TEMPORAL_NAMESPACE})`);
   return worker;
 }
 
-async function main(): Promise<void> {
+/**
+ * Start both Temporal workers (music generation + DJ studio).
+ * Exported so server/_core/index.ts can call this in-process.
+ * If Temporal is unreachable the promise rejects with a clear message.
+ */
+export async function startWorkers(): Promise<void> {
   console.log("[Worker] Starting AURA-X Temporal workers...");
 
-  // Both workers share the same activity implementations — Temporal dispatches
-  // workflow tasks to the correct queue automatically.
   const [musicWorker, djWorker] = await Promise.all([
-    runWorker("aura-x-music-generation"),
-    runWorker("aura-x-dj-studio"),
+    createWorker("aura-x-music-generation"),
+    createWorker("aura-x-dj-studio"),
   ]);
 
-  // Run both workers concurrently; either one failing will reject the promise.
+  // Run both workers concurrently. Promise.all rejects if either fails.
   await Promise.all([musicWorker.run(), djWorker.run()]);
 }
 
-main().catch((err) => {
-  console.error("[Worker] Fatal error:", err);
-  process.exit(1);
-});
+// Allow running as a standalone process: `npx tsx server/temporal/worker.ts`
+if (require.main === module) {
+  startWorkers().catch((err) => {
+    console.error("[Worker] Fatal error:", err);
+    process.exit(1);
+  });
+}

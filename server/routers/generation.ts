@@ -32,45 +32,18 @@ const generationParams = z.object({
 // ── generate router ──────────────────────────────────────────────────────────
 
 export const generateRouter = router({
+  /**
+   * @deprecated Use aiStudioRouter.generateMusic instead.
+   * This endpoint bypassed the Temporal workflow engine (T3). Calling it now
+   * throws NOT_IMPLEMENTED so callers are forced onto the durable path.
+   */
   music: protectedProcedure
     .input(z.object({ prompt: z.string(), projectId: z.number().optional(), parameters: generationParams.optional() }))
-    .mutation(async ({ ctx, input }) => {
-      const generation = await db.createGeneration({
-        userId: ctx.user.id,
-        projectId: input.projectId,
-        type: "music",
-        prompt: input.prompt,
-        parameters: input.parameters as any,
-        status: "pending",
+    .mutation(async () => {
+      throw new TRPCError({
+        code: "METHOD_NOT_SUPPORTED",
+        message: "generate.music is deprecated. Use aiStudio.generateMusic which routes through the durable Temporal workflow.",
       });
-
-      try {
-        const p = input.parameters;
-        const modalResponse = await modalClient.generateMusic({
-          prompt: input.prompt,
-          tempo: p?.tempo,
-          key: p?.key,
-          mode: p?.mode,
-          instruments: p?.instruments,
-          duration: p?.duration,
-          seed: p?.seed,
-          temperature: p?.temperature,
-          topK: p?.topK,
-          topP: p?.topP,
-          cfgScale: p?.cfgScale,
-          generationMode: p?.generationMode || "creative",
-        }, generation.id);
-
-        await db.updateGeneration(generation.id, { workflowId: modalResponse.jobId, status: "processing" });
-        console.log("[AI Generate] Started Modal job:", modalResponse.jobId);
-        return { generationId: generation.id, jobId: modalResponse.jobId, status: "processing" };
-      } catch (error) {
-        await db.updateGeneration(generation.id, {
-          status: "failed",
-          errorMessage: error instanceof Error ? error.message : "Unknown error",
-        });
-        throw error;
-      }
     }),
 
   autonomous: protectedProcedure
@@ -520,24 +493,15 @@ export const aiStudioRouter = router({
         await db.updateGeneration(generation.id, { status: "processing" });
         return { generationId: generation.id, workflowId: workflowHandle.workflowId, status: "processing" };
       } catch (temporalError) {
-        // T3 fallback: direct Modal call when Temporal is unavailable (e.g. Railway without Temporal)
-        console.warn("[Music Generation] Temporal unavailable, falling back to direct Modal:", temporalError);
-        try {
-          const modalResult = await modalClient.generateMusic({
-            prompt: input.prompt,
-            duration: input.duration || 30,
-            temperature: 1.0,
-          }, generation.id);
-          if (modalResult.audioUrl) {
-            await db.updateGeneration(generation.id, { status: "completed", resultUrl: modalResult.audioUrl });
-          } else {
-            await db.updateGeneration(generation.id, { status: "processing" });
-          }
-          return { generationId: generation.id, workflowId: null, status: "processing" as const };
-        } catch (modalError) {
-          await db.updateGeneration(generation.id, { status: "failed", errorMessage: modalError instanceof Error ? modalError.message : "Unknown error" });
-          throw modalError;
-        }
+        // T3: no silent fallback — Temporal is required for durable execution.
+        // Mark the generation failed so the user sees a real error, not infinite "processing".
+        const msg = temporalError instanceof Error ? temporalError.message : "Temporal workflow engine unavailable";
+        await db.updateGeneration(generation.id, { status: "failed", errorMessage: msg });
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Music generation service is temporarily unavailable. Your credits have not been charged. Please try again.",
+          cause: temporalError,
+        });
       }
     }),
 
@@ -633,25 +597,13 @@ export const aiStudioRouter = router({
         console.log("[J3] StemSeparationWorkflow started:", workflowHandle.workflowId);
         return { workflowId: workflowHandle.workflowId, status: "processing" as const };
       } catch (temporalError) {
-        // T3 fallback: direct Modal call until Temporal is wired in all environments
-        console.warn("[J3] Temporal unavailable — falling back to direct Modal call:", temporalError);
-        const stemResult = await modalClient.separateStems({
-          audioUrl: generation.resultUrl,
-          stemTypes: SEPARATION_MODEL_CAPABILITIES["htdemucs_6s"] as string[],
+        // T3: no silent fallback — surface the error so the user can retry.
+        const msg = temporalError instanceof Error ? temporalError.message : "Temporal workflow engine unavailable";
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Stem separation service is temporarily unavailable. Please try again.",
+          cause: temporalError,
         });
-        if (stemResult.status === "failed" || stemResult.error) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: stemResult.error || "Stem separation failed — Modal backend may not be deployed.",
-          });
-        }
-        if (stemResult.status === "completed" && stemResult.stems) {
-          await db.updateGeneration(input.generationId, {
-            // stemsUrl holds the full 26-stem map: { [stemId]: { url, key, sdr_db } }
-            stemsUrl: JSON.stringify(stemResult.stems),
-          });
-        }
-        return stemResult;
       }
     }),
 

@@ -207,14 +207,11 @@ describe('aiStudio.separateStems — Temporal workflow', () => {
     expect((result as any).status).toBe('processing');
   });
 
-  it('falls back to direct Modal call when Temporal throws', async () => {
+  it('throws SERVICE_UNAVAILABLE (not silent fallback) when Temporal throws', async () => {
+    // T3: fallback removed — Temporal failure must surface as a user-visible error,
+    // not silently route to Modal. Durable execution is required.
     const { executeStemSeparationWorkflow } = await import('./temporalClient');
-    vi.mocked(executeStemSeparationWorkflow).mockRejectedValue(new Error('Temporal unavailable'));
-
-    vi.mocked(modalClient.separateStems).mockResolvedValue({
-      status: 'processing',
-      jobId: 'job-fallback',
-    } as any);
+    vi.mocked(executeStemSeparationWorkflow).mockRejectedValue(new Error('Temporal down'));
 
     const gen = {
       id: 1, status: 'completed', resultUrl: 'https://s3/track.wav',
@@ -225,15 +222,11 @@ describe('aiStudio.separateStems — Temporal workflow', () => {
     vi.mocked(db.getGenerationById).mockResolvedValue(gen as any);
 
     const caller = appRouter.createCaller(ctx());
-    const result = await caller.aiStudio.separateStems({ generationId: 1 });
+    await expect(caller.aiStudio.separateStems({ generationId: 1 }))
+      .rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
 
-    // Should fall back to Modal with htdemucs_6s stem types
-    expect(vi.mocked(modalClient.separateStems)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stemTypes: SEPARATION_MODEL_CAPABILITIES['htdemucs_6s'],
-      })
-    );
-    expect((result as any).jobId).toBe('job-fallback');
+    // Modal should NOT be called — no silent fallback
+    expect(vi.mocked(modalClient.separateStems)).not.toHaveBeenCalled();
   });
 });
 

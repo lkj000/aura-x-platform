@@ -446,10 +446,11 @@ export default function Instruments() {
     },
   });
 
-  const generateMusicMutation = trpc.generate.music.useMutation({
+  // Route through aiStudio.generateMusic (Temporal-backed durable path).
+  // generate.music is deprecated and will throw METHOD_NOT_SUPPORTED.
+  const generateMusicMutation = trpc.aiStudio.generateMusic.useMutation({
     onSuccess: (data) => {
       console.log('[Instruments] Generation started:', data);
-      // Poll for status
       pollGenerationStatus(data.generationId);
     },
     onError: (error) => {
@@ -649,21 +650,16 @@ export default function Instruments() {
         targetScore: 80,
       });
     } else {
-      // Manual mode: direct Modal generation
+      // Manual mode: route through durable Temporal path via aiStudio.generateMusic
       generateMusicMutation.mutate({
         prompt: params.prompt,
-        parameters: {
-          tempo: params.tempo,
-          key: params.key,
-          mode: params.mode,
-          duration: params.duration,
-          seed: params.seed,
-          temperature: params.temperature,
-          topK: params.topK,
-          topP: params.topP,
-          cfgScale: params.cfgScale,
-          generationMode: params.generationMode,
-        },
+        style: params.mode || 'Amapiano',
+        mood: 'Energetic',
+        bpm: params.tempo || 120,
+        key: params.key || 'A min',
+        vocalStyle: 'none',
+        mode: 'custom',
+        duration: params.duration,
       });
     }
   };

@@ -10,7 +10,12 @@
 import { Connection, Client, WorkflowHandle } from '@temporalio/client';
 
 // Temporal connection configuration
+// Localhost for dev; Temporal Cloud address for production.
+// Temporal Cloud address format: <namespace>.tmprl.cloud:7233
 const TEMPORAL_SERVER_URL = process.env.TEMPORAL_SERVER_URL || 'localhost:7233';
+const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE || 'default';
+const TEMPORAL_API_KEY = process.env.TEMPORAL_API_KEY || '';  // Temporal Cloud API key
+
 const TEMPORAL_TASK_QUEUE = 'aura-x-music-generation';
 const TEMPORAL_DJ_TASK_QUEUE = 'aura-x-dj-studio';
 
@@ -18,26 +23,43 @@ const TEMPORAL_DJ_TASK_QUEUE = 'aura-x-dj-studio';
 let temporalClient: Client | null = null;
 
 /**
- * Get or create Temporal client instance
+ * Build the Connection.connect() options.
+ * On Temporal Cloud: address points to <namespace>.tmprl.cloud:7233 and
+ * the API key is passed as a gRPC metadata header (Authorization: Bearer <key>).
+ * Locally: plain connection to localhost:7233, no TLS.
+ */
+function buildConnectionOptions() {
+  const isCloud = TEMPORAL_SERVER_URL.includes('tmprl.cloud');
+
+  if (isCloud && TEMPORAL_API_KEY) {
+    return {
+      address: TEMPORAL_SERVER_URL,
+      tls: true as const, // Temporal Cloud requires TLS
+      metadata: {
+        authorization: `Bearer ${TEMPORAL_API_KEY}`,
+      },
+    };
+  }
+
+  return { address: TEMPORAL_SERVER_URL };
+}
+
+/**
+ * Get or create Temporal client instance.
+ * Throws if the server is unreachable — callers handle this as a 503.
  */
 export async function getTemporalClient(): Promise<Client> {
   if (!temporalClient) {
     try {
-      const connection = await Connection.connect({
-        address: TEMPORAL_SERVER_URL,
-        // Add TLS configuration for production:
-        // tls: {
-        //   clientCertPair: {
-        //     crt: Buffer.from(process.env.TEMPORAL_TLS_CERT || ''),
-        //     key: Buffer.from(process.env.TEMPORAL_TLS_KEY || ''),
-        //   },
-        // },
+      const connection = await Connection.connect(buildConnectionOptions());
+      temporalClient = new Client({
+        connection,
+        namespace: TEMPORAL_NAMESPACE,
       });
-      temporalClient = new Client({ connection });
-      console.log(`[Temporal] Connected to ${TEMPORAL_SERVER_URL}`);
+      console.log(`[Temporal] Connected to ${TEMPORAL_SERVER_URL} (namespace: ${TEMPORAL_NAMESPACE})`);
     } catch (error) {
       console.error('[Temporal] Failed to connect:', error);
-      throw new Error('Failed to connect to Temporal server');
+      throw new Error(`Temporal server unreachable at ${TEMPORAL_SERVER_URL}`);
     }
   }
   return temporalClient;
