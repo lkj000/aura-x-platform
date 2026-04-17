@@ -19,8 +19,13 @@
  */
 
 import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
 import { Worker, NativeConnection } from "@temporalio/worker";
 import * as activities from "./activities";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const TEMPORAL_SERVER_URL = process.env.TEMPORAL_SERVER_URL || "localhost:7233";
 const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE || "default";
@@ -47,7 +52,9 @@ async function createWorker(taskQueue: string): Promise<Worker> {
     connection,
     namespace: TEMPORAL_NAMESPACE,
     taskQueue,
-    workflowsPath: require.resolve("./workflows"),
+    // In the esbuild bundle: __dirname = dist/, resolves to dist/workflows.js
+    // In dev with tsx: __dirname = server/temporal/, resolves to server/temporal/workflows.js
+    workflowsPath: path.resolve(__dirname, "workflows.js"),
     activities,
     maxConcurrentActivityTaskExecutions: 10,
     maxConcurrentWorkflowTaskExecutions: 10,
@@ -75,7 +82,8 @@ export async function startWorkers(): Promise<void> {
 }
 
 // Allow running as a standalone process: `npx tsx server/temporal/worker.ts`
-if (require.main === module) {
+// ESM equivalent of require.main === module
+if (import.meta.url === new URL(process.argv[1] ?? "", "file:").href) {
   startWorkers().catch((err) => {
     console.error("[Worker] Fatal error:", err);
     process.exit(1);
