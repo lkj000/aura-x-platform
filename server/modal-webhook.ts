@@ -7,7 +7,7 @@ function publicCtx(): TrpcContext {
   return {
     user: null,
     req: {} as TrpcContext['req'],
-    res: { clearCookie: () => {} } as TrpcContext['res'],
+    res: { clearCookie: () => {} } as unknown as TrpcContext['res'],
   };
 }
 
