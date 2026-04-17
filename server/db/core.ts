@@ -6,9 +6,15 @@
  */
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { migrate } from "drizzle-orm/mysql2/migrator";
+import path from "path";
+import { fileURLToPath } from "url";
 import * as schema from "../../drizzle/schema";
 import { users, type InsertUser } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -22,6 +28,27 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+/**
+ * Run any pending Drizzle migrations at startup.
+ * Safe to call multiple times — Drizzle tracks applied migrations in __drizzle_migrations.
+ * Called once from server/_core/index.ts before the server starts accepting requests.
+ */
+export async function runMigrations(): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Skipping migrations: no DATABASE_URL configured");
+    return;
+  }
+  try {
+    const migrationsFolder = path.resolve(__dirname, "../../drizzle");
+    await migrate(db, { migrationsFolder });
+    console.log("[Database] Migrations applied successfully");
+  } catch (error) {
+    console.error("[Database] Migration failed:", error);
+    throw error; // Crash startup — a failed migration must not be silently ignored
+  }
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {

@@ -28,6 +28,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // Run pending DB migrations before accepting any requests.
+  const { runMigrations } = await import("../db/core");
+  await runMigrations();
+
   const app = express();
   const server = createServer(app);
   

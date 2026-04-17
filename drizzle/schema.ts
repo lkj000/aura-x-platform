@@ -609,11 +609,17 @@ export type InsertCommunityFeedback = typeof communityFeedback.$inferInsert;
  * Aggregates high-quality community feedback into training batches
  */
 /**
- * Gold Standard Generations - Individual generations that qualify for training
+ * Gold Standard Generations - Individual generations that qualify for training.
+ *
+ * T7 exit criterion: every row must contain the full feature vector from the
+ * source generation (PRD §5.3) so fine-tuning jobs have everything they need
+ * without joining back to generation_history.
  */
 export const goldStandardGenerations = mysqlTable("gold_standard_generations", {
   id: int("id").autoincrement().primaryKey(),
   generationId: int("generationId").notNull(), // FK to generation_history
+
+  // ── User ratings (averaged across multiple raters) ──────────────────────────
   avgCulturalRating: decimal("avgCulturalRating", { precision: 3, scale: 2 }).notNull(),
   avgSwingRating: decimal("avgSwingRating", { precision: 3, scale: 2 }).notNull(),
   avgLinguisticRating: decimal("avgLinguisticRating", { precision: 3, scale: 2 }),
@@ -621,6 +627,21 @@ export const goldStandardGenerations = mysqlTable("gold_standard_generations", {
   feedbackCount: int("feedbackCount").notNull(),
   favoriteCount: int("favoriteCount").default(0).notNull(),
   isGoldStandard: boolean("isGoldStandard").default(true).notNull(),
+
+  // ── Full feature vector (PRD §5.3) ──────────────────────────────────────────
+  // Denormalised from generation_history so fine-tuning jobs need no join.
+  audioUrl: text("audioUrl"),                         // S3 presigned URL of the rated track
+  prompt: text("prompt"),                             // Original generation prompt
+  culturalScore: decimal("culturalScore", { precision: 5, scale: 2 }), // 0–100 composite
+  culturalScoreBreakdown: json("culturalScoreBreakdown"), // Full CulturalScore: {overall, breakdown{8 dims}}
+  bpm: int("bpm"),
+  key: varchar("key", { length: 10 }),
+  contrastScore: decimal("contrastScore", { precision: 6, scale: 2 }), // 0–200 Soulful↔Sgija axis
+  grooveFingerprint: json("grooveFingerprint"),       // 512-float 32-bar microtiming matrix
+  timbralContractScore: decimal("timbralContractScore", { precision: 4, scale: 2 }), // 0–8 log drum compliance
+  style: varchar("style", { length: 100 }),           // Amapiano sub-genre preset used
+  parameters: json("parameters"),                     // Full generation parameters JSON
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

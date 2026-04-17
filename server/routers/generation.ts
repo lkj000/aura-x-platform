@@ -762,13 +762,29 @@ export const aiStudioRouter = router({
           }
         }
 
+        // Re-fetch generation after potential auto-score above so feature vector is fresh.
+        const freshGen = await db.getGenerationById(input.generationId);
+
         // Write the gold standard row — this is the OS kernel activation.
+        // PRD §5.2: every gold standard row MUST contain the full feature vector.
         const goldStandard = await db.upsertGoldStandard({
           generationId: input.generationId,
           culturalRating: input.rating,
           swingRating: input.swingRating ?? input.rating,
           linguisticRating: input.linguisticRating,
           productionRating: input.productionRating,
+          featureVector: {
+            audioUrl: freshGen?.resultUrl,
+            prompt: freshGen?.prompt,
+            culturalScore: freshGen?.culturalScore,
+            culturalScoreBreakdown: freshGen?.culturalScoreBreakdown as Record<string, unknown> | null,
+            bpm: freshGen?.bpm,
+            key: freshGen?.key,
+            style: freshGen?.style,
+            parameters: freshGen?.parameters,
+            // contrastScore, grooveFingerprint, timbralContractScore: populated by T10/T11
+            // once the analysis pipeline computes them. Null is correct here until then.
+          },
         });
 
         console.log("[T7] Gold standard written for generation", input.generationId, "id:", goldStandard.id);

@@ -140,6 +140,20 @@ export async function upsertGoldStandard(params: {
   swingRating: number;
   linguisticRating?: number;
   productionRating?: number;
+  // Full feature vector (PRD §5.3) — denormalised so fine-tuning needs no join
+  featureVector?: {
+    audioUrl?: string | null;
+    prompt?: string | null;
+    culturalScore?: string | number | null;
+    culturalScoreBreakdown?: Record<string, unknown> | null;
+    bpm?: number | null;
+    key?: string | null;
+    contrastScore?: string | number | null;
+    grooveFingerprint?: unknown | null;
+    timbralContractScore?: string | number | null;
+    style?: string | null;
+    parameters?: unknown | null;
+  };
 }): Promise<GoldStandardGeneration> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -157,6 +171,7 @@ export async function upsertGoldStandard(params: {
     const avg = (prev: string | number, next: number) =>
       ((Number(prev) * n + next) / (n + 1)).toFixed(2);
 
+    const fv = params.featureVector;
     await db
       .update(goldStandardGenerations)
       .set({
@@ -169,6 +184,20 @@ export async function upsertGoldStandard(params: {
           ? (avg(prev.avgProductionRating ?? params.productionRating, params.productionRating) as any)
           : prev.avgProductionRating,
         feedbackCount: n + 1,
+        // Refresh feature vector fields if caller provides them (idempotent on re-rate)
+        ...(fv && {
+          audioUrl: fv.audioUrl ?? prev.audioUrl,
+          prompt: fv.prompt ?? prev.prompt,
+          culturalScore: fv.culturalScore != null ? String(fv.culturalScore) as any : prev.culturalScore,
+          culturalScoreBreakdown: fv.culturalScoreBreakdown ?? prev.culturalScoreBreakdown,
+          bpm: fv.bpm ?? prev.bpm,
+          key: fv.key ?? prev.key,
+          contrastScore: fv.contrastScore != null ? String(fv.contrastScore) as any : prev.contrastScore,
+          grooveFingerprint: fv.grooveFingerprint ?? prev.grooveFingerprint,
+          timbralContractScore: fv.timbralContractScore != null ? String(fv.timbralContractScore) as any : prev.timbralContractScore,
+          style: fv.style ?? prev.style,
+          parameters: fv.parameters ?? prev.parameters,
+        }),
       })
       .where(eq(goldStandardGenerations.id, prev.id));
 
@@ -180,6 +209,7 @@ export async function upsertGoldStandard(params: {
     return updated[0]!;
   }
 
+  const fv = params.featureVector;
   const result = await db.insert(goldStandardGenerations).values({
     generationId: params.generationId,
     avgCulturalRating: params.culturalRating.toFixed(2) as any,
@@ -189,6 +219,18 @@ export async function upsertGoldStandard(params: {
     feedbackCount: 1,
     favoriteCount: 0,
     isGoldStandard: true,
+    // Full feature vector — denormalised copy from generation_history
+    audioUrl: fv?.audioUrl ?? null,
+    prompt: fv?.prompt ?? null,
+    culturalScore: fv?.culturalScore != null ? String(fv.culturalScore) as any : null,
+    culturalScoreBreakdown: fv?.culturalScoreBreakdown ?? null,
+    bpm: fv?.bpm ?? null,
+    key: fv?.key ?? null,
+    contrastScore: fv?.contrastScore != null ? String(fv.contrastScore) as any : null,
+    grooveFingerprint: fv?.grooveFingerprint ?? null,
+    timbralContractScore: fv?.timbralContractScore != null ? String(fv.timbralContractScore) as any : null,
+    style: fv?.style ?? null,
+    parameters: fv?.parameters ?? null,
   });
 
   const inserted = await db
