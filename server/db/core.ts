@@ -42,7 +42,7 @@ export async function runMigrations(): Promise<void> {
     return;
   }
   try {
-    const migrationsFolder = path.resolve(__dirname, "../../drizzle");
+    const migrationsFolder = path.resolve(process.cwd(), "drizzle");
     await migrate(db, { migrationsFolder });
     console.log("[Database] Migrations applied successfully");
   } catch (error) {
