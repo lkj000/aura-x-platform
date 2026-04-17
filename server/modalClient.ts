@@ -80,9 +80,12 @@ export async function generateMusic(params: MusicGenerationParams, generationId?
   try {
     console.log('[ModalClient] Generating music with params:', params);
     
-    // Check if Modal is configured
-    if (MODAL_BASE_URL.includes('your-modal-app')) {
-      console.warn('[ModalClient] Modal not configured, using demo mode');
+    // Check if Modal is configured for music generation.
+    // The DJ Studio app (aura-x-dj-studio) handles analysis/stems, not MusicGen —
+    // fall back to demo mode so the generation → rating flow can be tested end-to-end.
+    const isDemoMode = MODAL_BASE_URL.includes('your-modal-app') || MODAL_BASE_URL.includes('dj-studio');
+    if (isDemoMode) {
+      console.warn('[ModalClient] Modal not configured for music generation, using demo mode');
       // Return a demo response that simulates async processing
       const jobId = `demo-${Date.now()}`;
       
