@@ -8,7 +8,7 @@ import crypto from 'crypto';
  */
 
 // Modal endpoint URLs (configured via environment variables)
-const MODAL_BASE_URL = process.env.VITE_MODAL_API_URL || 'https://mabgwej--aura-x-ai-fastapi-app.modal.run';
+const MODAL_BASE_URL = process.env.VITE_MODAL_API_URL || 'https://mabgwej--aura-x-dj-studio-analyze-track.modal.run';
 const MODAL_API_KEY = process.env.MODAL_API_KEY || '';  // Modal doesn't require API key for public endpoints
 
 const modalClient = axios.create({
@@ -167,17 +167,13 @@ export async function separateStems(params: StemSeparationParams): Promise<StemS
   try {
     console.log('[ModalClient] Separating stems for:', params.audioUrl);
 
-    // Modal not deployed yet — return a clear pending response instead of a 500
-    if (!process.env.VITE_MODAL_API_URL || MODAL_BASE_URL.includes('mabgwej--aura-x-ai-fastapi-app')) {
-      console.warn('[ModalClient] Modal backend not deployed. Stem separation requires Modal deployment.');
-      return {
-        jobId: `demo-stems-${Date.now()}`,
-        status: 'failed',
-        error: 'Stem separation requires the Modal backend to be deployed. Run: cd modal_backend && modal deploy modal_app.py',
-      };
-    }
+    const stemClient = axios.create({
+      baseURL: 'https://mabgwej--aura-x-dj-studio-separate-stems.modal.run',
+      timeout: 600000,
+      headers: { 'Content-Type': 'application/json' },
+    });
 
-    const response = await modalClient.post('/separate_stems', {
+    const response = await stemClient.post('/', {
       audio_url: params.audioUrl,
       stem_types: params.stemTypes || ['vocals', 'drums', 'bass', 'other'],
     });

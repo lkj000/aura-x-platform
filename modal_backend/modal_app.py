@@ -50,7 +50,12 @@ _cpu_base = (
         "libtag1-dev",
         "rubberband-cli",   # tempo-shifting for set renderer
     )
+    .pip_install("setuptools")
+    # openai-whisper uses legacy setup.py that needs pkg_resources at build time;
+    # --no-build-isolation reuses the env where setuptools is already installed.
+    .pip_install("openai-whisper==20231117", extra_options="--no-build-isolation")
     .pip_install(
+        "fastapi",          # required by @modal.web_endpoint / @modal.fastapi_endpoint
         "essentia==2.1b6.dev1110",
         "numpy==1.24.3",
         "scipy==1.11.4",
@@ -59,8 +64,6 @@ _cpu_base = (
         "pydub==0.25.1",
         "boto3==1.34.34",
         "requests==2.31.0",
-        # Whisper runs on CPU here; GPU variant overrides below
-        "openai-whisper==20231117",
         "torch==2.1.2",
         "torchaudio==2.1.2",
     )
@@ -86,7 +89,10 @@ _gpu_base = (
         "libtag1-dev",
         "rubberband-cli",
     )
+    .pip_install("setuptools")
+    .pip_install("openai-whisper==20231117", extra_options="--no-build-isolation")
     .pip_install(
+        "fastapi",          # required by @modal.web_endpoint / @modal.fastapi_endpoint
         "essentia==2.1b6.dev1110",
         "numpy==1.24.3",
         "scipy==1.11.4",
@@ -95,7 +101,6 @@ _gpu_base = (
         "pydub==0.25.1",
         "boto3==1.34.34",
         "requests==2.31.0",
-        "openai-whisper==20231117",
         # GPU-enabled torch
         "torch==2.1.2+cu121",
         "torchaudio==2.1.2+cu121",
@@ -204,7 +209,7 @@ def _compatible_keys(camelot: str) -> List[str]:
     timeout=600,
     cpu=4.0,
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def analyze_track(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     Full Amapiano analysis for a DJ Studio track.
@@ -419,7 +424,7 @@ def analyze_track(body: Dict[str, Any]) -> Dict[str, Any]:
     gpu="A10G",
     timeout=1800,
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def separate_stems(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     26-stem Amapiano separation for a DJ Studio track.
@@ -498,7 +503,7 @@ def separate_stems(body: Dict[str, Any]) -> Dict[str, Any]:
     timeout=900,
     cpu=4.0,
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def analyze_training_track(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     Analysis for training pipeline.  Same computation as analyze_track but
@@ -648,7 +653,7 @@ def analyze_training_track(body: Dict[str, Any]) -> Dict[str, Any]:
     gpu="A10G",
     timeout=3600,
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def separate_stems_training(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     26-stem separation for training tracks.  Stores stems under:
@@ -728,7 +733,7 @@ def separate_stems_training(body: Dict[str, Any]) -> Dict[str, Any]:
     timeout=3600,
     cpu=8.0,
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def render_dj_set(body: Dict[str, Any]) -> Dict[str, Any]:
     """
     Render complete DJ set from performance plan.
